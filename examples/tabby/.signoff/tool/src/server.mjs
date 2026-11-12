@@ -47,8 +47,8 @@ export function stopServer(root) {
 }
 
 /**
- * Ensure the app is reachable. If cfg.start is set we own the process:
- * restart it each round when cfg.restart is true (servers without hot reload).
+ * Ensure the app is reachable. With cfg.start, Signoff starts a fresh copy from this
+ * folder for every round (and the gate stops it afterwards).
  * Returns { ok, started, log }.
  */
 export async function ensureServer(root, cfg, log = () => {}) {

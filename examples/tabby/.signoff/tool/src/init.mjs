@@ -20,7 +20,7 @@ function guessApp(root) {
     if (deps.astro) port = 4321;
     const m = (s[script] ?? '').match(/(?:--port|-p|PORT=)\s*=?\s*(\d{2,5})/);
     if (m) port = Number(m[1]);
-    return { start: script ? `npm run ${script}` : null, url: `http://localhost:${port}`, restart: !(deps.vite || deps.next || deps.astro || /--watch|nodemon/.test(s[script] ?? '')) };
+    return { start: script ? `npm run ${script}` : null, url: `http://localhost:${port}` };
   } catch { return {}; }
 }
 
@@ -63,7 +63,6 @@ export function init(root, { url, start, force } = {}) {
     const cfg = {
       url: url ?? guess.url ?? DEFAULTS.url,
       start: start ?? guess.start ?? null,
-      restart: guess.restart ?? true,
       specs: DEFAULTS.specs,
       maxRounds: DEFAULTS.maxRounds,
       headless: true,
@@ -88,6 +87,22 @@ export function init(root, { url, start, force } = {}) {
   done.push('vendored the gate into .signoff/tool/ (no dependencies)');
 
   done.push(`added the Stop and PreToolUse hooks to ${mergeHooks(root).replace(root, '.')}`);
+
+  // A short way to run the vendored tool: `npm run signoff <command>`.
+  const pkgPath = join(root, 'package.json');
+  if (existsSync(pkgPath)) {
+    try {
+      const raw = readFileSync(pkgPath, 'utf8');
+      const pkg = JSON.parse(raw);
+      pkg.scripts ??= {};
+      if (!pkg.scripts.signoff) {
+        pkg.scripts.signoff = 'node .signoff/tool/bin/kane-signoff.mjs';
+        const indent = (raw.match(/^[ \t]+(?=")/m) ?? ['  '])[0];
+        writeFileSync(pkgPath, JSON.stringify(pkg, null, indent) + '\n');
+        done.push('added `npm run signoff <command>` to package.json');
+      }
+    } catch { /* leave an unparseable package.json alone */ }
+  }
 
   const gi = join(root, '.gitignore');
   const lines = ['.signoff/state/', '.signoff/live.json', '.signoff/server.log', '.signoff/rounds/', '.testmuai/evidence/'];

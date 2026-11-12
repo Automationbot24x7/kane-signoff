@@ -90,6 +90,6 @@ export function receipt({ root, status, rounds, results, fp, head, startedAt, cr
   L.push(`| Spec | Result | Time | Test Manager |`, `|---|---|---|---|`);
   for (const r of results) L.push(`| \`${r.spec}\` | ${r.status === 'passed' ? 'PASS' : 'FAIL'} | ${Math.round(r.duration)}s | ${r.shareUrl ? `[open](${r.shareUrl})` : '-'} |`);
   L.push('');
-  L.push(`Round-by-round history: \`.signoff/ledger.ndjson\` (view it with \`npx kane-signoff view\`).`);
+  L.push(`Round-by-round history: \`.signoff/ledger.ndjson\` (watch it with \`npm run signoff view\`, or \`node .signoff/tool/bin/kane-signoff.mjs view\`).`);
   return L.join('\n') + '\n';
 }

@@ -7,7 +7,6 @@ export const CONFIG_FILE = 'signoff.config.json';
 export const DEFAULTS = {
   url: 'http://localhost:3000',   // where your app runs
   start: null,                    // command that starts your app (optional if you run it yourself)
-  restart: true,                  // restart the app before each round (for servers without hot reload)
   specs: 'signoff',               // folder of Kane _test.md specs
   maxRounds: 4,                   // how many times Kane may send the agent back before giving up
   headless: true,                 // false shows the real Chrome window while Kane works

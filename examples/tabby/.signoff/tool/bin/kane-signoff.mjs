@@ -49,7 +49,8 @@ switch (cmd) {
   case 'init': {
     const root = process.cwd();
     for (const line of init(root, { url: flag('url'), start: flag('start'), force: !!flag('force') })) say(`  ✓ ${line}`);
-    say('\nNext:\n  1. Describe what "done" means in signoff/*_test.md (plain English, one ## heading per step).\n  2. Run `npx kane-signoff lock` to sign the specs.\n  3. Ask your agent for a change. It cannot finish until Kane passes the specs.\n  Watch it live: `npx kane-signoff view`');
+    const run = existsSync(join(root, 'package.json')) ? 'npm run signoff' : 'node .signoff/tool/bin/kane-signoff.mjs';
+    say(`\nNext:\n  1. Describe what "done" means in signoff/*_test.md (plain English, one ## heading per step).\n  2. Sign the specs:       ${run} lock\n  3. Ask your agent for a change. It cannot finish until Kane passes the specs.\n  Watch the rounds live:   ${run} view`);
     break;
   }
   case 'lock': {
@@ -79,7 +80,7 @@ switch (cmd) {
     const st = readJson(join(root, '.signoff/state/gate.json'), {});
     say(`app:    ${cfg.url}${cfg.start ? `  (start: ${cfg.start})` : ''}`);
     say(`specs:  ${listSpecs(root, cfg).join(', ') || '(none)'}`);
-    say(`lock:   ${lock.missingLock ? 'not locked (run `kane-signoff lock`)' : lock.ok ? `ok, locked ${lock.lockedAt}` : `CHANGED: ${[...lock.changed, ...lock.added, ...lock.removed].join(', ')}`}`);
+    say(`lock:   ${lock.missingLock ? 'not locked (run the `lock` command)' : lock.ok ? `ok, locked ${lock.lockedAt}` : `CHANGED: ${[...lock.changed, ...lock.added, ...lock.removed].join(', ')}`}`);
     say(`gate:   ${existsSync(join(root, '.signoff/off')) ? 'OFF' : 'on'}, max ${cfg.maxRounds} rounds`);
     if (st.lastPass) say(`last signed off: ${st.lastPass.when} (${st.lastPass.passed}/${st.lastPass.total} specs)`);
     break;

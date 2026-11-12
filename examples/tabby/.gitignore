@@ -4,3 +4,4 @@
 .signoff/server.log
 .signoff/rounds/
 .testmuai/evidence/
+signoff/output-*/
