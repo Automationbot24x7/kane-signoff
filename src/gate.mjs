@@ -8,6 +8,7 @@ import { checkLock } from './lock.mjs';
 import { ensureServer, stopServer } from './server.mjs';
 import { runSpec, newestEvidence } from './kane.mjs';
 import { readEvidence } from './evidence.mjs';
+import { clearOrigin } from './cdp.mjs';
 import { agentReport, receipt } from './report.mjs';
 import { appendLedger, writeLive, readJson, writeJson, fingerprint, gitHead } from './ledger.mjs';
 
@@ -120,8 +121,9 @@ If you started a server on that port, stop it now: Signoff starts the app itself
     writeLive(root, { ...live, phase: `Kane is testing ${spec}` });
     log(`kane: ${spec}`);
     const since = Date.now();
+    if (cfg.cdpEndpoint) { try { await clearOrigin(cfg.cdpEndpoint, cfg.url); } catch (err) { log(`could not clear browser storage: ${err.message}`); } }
     const r = await runSpec(spec, {
-      cwd: root, url: cfg.url, headless: cfg.headless, timeoutMs: cfg.specTimeout * 1000,
+      cwd: root, url: cfg.url, headless: cfg.headless, cdpEndpoint: cfg.cdpEndpoint, timeoutMs: cfg.specTimeout * 1000,
       onEvent: (e) => {
         const text = e.remark ?? e.one_liner ?? e.summary ?? (e.type === 'test_md_step_start' ? (e.heading ?? e.title) : null);
         if (!text) return;

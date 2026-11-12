@@ -80,10 +80,11 @@ export function killTree(pid) {
 }
 
 /** Run one _test.md file. Returns a normalized result. */
-export async function runSpec(specPath, { cwd, url, headless, onEvent, timeoutMs }) {
+export async function runSpec(specPath, { cwd, url, headless, cdpEndpoint, onEvent, timeoutMs }) {
   const args = ['testmd', 'run', specPath, '--agent'];
   if (url) args.push('--url', url);
-  if (headless) args.push('--headless');
+  if (cdpEndpoint) args.push('--cdp-endpoint', cdpEndpoint);
+  else if (headless) args.push('--headless');
   const started = Date.now();
   const { code, events, stderr } = await runKane(args, { cwd, onEvent, timeoutMs });
   const done = [...events].reverse().find((e) => e.type === 'test_md_done');
