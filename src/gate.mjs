@@ -145,7 +145,7 @@ export async function gate({ mode = 'hook', input = {}, force = false, log = () 
     return allow(`Kane CLI signed off: ${passed}/${results.length} specs passed in a real browser (round ${round}). Receipt: .signoff/RECEIPT.md`);
   }
 
-  const reason = agentReport(root, { round, maxRounds: cfg.maxRounds, results, evidence });
+  const reason = agentReport(root, { round, maxRounds: cfg.maxRounds, results, evidence, blind: cfg.blind });
   state.lastCheck = { fp, status: 'failed', report: reason };
   writeJson(statePath, state);
   mkdirSync(roundDir, { recursive: true });

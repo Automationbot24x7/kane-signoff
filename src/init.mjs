@@ -36,7 +36,7 @@ function mergeHooks(root) {
   ];
   settings.hooks.PreToolUse = [
     ...strip(settings.hooks.PreToolUse),
-    { matcher: 'Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell', hooks: [{ type: 'command', command: `node ${HOOK_BIN} guard`, timeout: 15 }] },
+    { matcher: 'Edit|Write|MultiEdit|NotebookEdit|Read|Grep|Glob|Bash|PowerShell', hooks: [{ type: 'command', command: `node ${HOOK_BIN} guard`, timeout: 15 }] },
   ];
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, JSON.stringify(settings, null, 2) + '\n');
