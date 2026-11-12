@@ -70,3 +70,11 @@ test('blocks killing processes by name, allows stopping one PID', () => {
   assert.equal(run('Bash', { command: 'taskkill /PID 4312 /F' }), null);
   assert.equal(run('PowerShell', { command: 'Stop-Process -Id 4312' }), null);
 });
+
+test('a redirect is a write only to the file it points at', () => {
+  assert.equal(run('Bash', { command: 'ls -la public signoff .signoff 2>/dev/null && cat package.json signoff.config.json 2>&1' }), null);
+  assert.equal(run('Bash', { command: 'node server.js > server.log 2>&1 &' }), null);
+  assert.ok(denied(run('Bash', { command: 'echo {} > signoff.config.json' })));
+  assert.ok(denied(run('Bash', { command: 'node -e "x" >> .signoff/state/gate.json' })));
+  assert.ok(denied(run('Bash', { command: 'printf "x" > "signoff/a_test.md"' })));
+});

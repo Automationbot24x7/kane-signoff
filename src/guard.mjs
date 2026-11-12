@@ -10,7 +10,7 @@ import { findRoot, loadConfig, isProtected } from './config.mjs';
 
 const WRITE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const READ_TOOLS = new Set(['Read', 'Grep', 'Glob', 'NotebookRead', 'LS']);
-const WRITE_SHELL = /(>>?|\btee\b|\bsed\b[^|;&]*\s-i|\bperl\b[^|;&]*\s-i|\brm\b|\bmv\b|\bcp\b|\btruncate\b|\bdd\b|Set-Content|Out-File|Add-Content|Remove-Item|Move-Item|Copy-Item|\bgit\s+(checkout|restore|rm|mv|stash)\b|writeFileSync|fs\.write|open\([^)]*['"]w)/i;
+const WRITE_SHELL = /(\btee\b|\bsed\b[^|;&]*\s-i|\bperl\b[^|;&]*\s-i|\brm\b|\bmv\b|\bcp\b|\btruncate\b|\bdd\b|Set-Content|Out-File|Add-Content|Remove-Item|Move-Item|Copy-Item|\bgit\s+(checkout|restore|rm|mv|stash)\b|writeFileSync|fs\.write|open\([^)]*['"]w)/i;
 
 // taskkill /IM, pkill, killall, Stop-Process -Name, Get-Process <name> | Stop-Process, kill -1, wmic ... delete
 const MASS_KILL = /\btaskkill\b[^|;&]*\s[/-]im\b|\bpkill\b|\bkillall\b|\bStop-Process\b[^|;&]*-(Name|ProcessName)\b|\bGet-Process\b[^|;]*\|\s*Stop-Process\b|\bkill\s+(-\w+\s+)*-1\b|\bwmic\b[^|;&]*\bprocess\b[^|;&]*\bdelete\b|\bkill\s+[^|;&]*\$\(\s*pgrep\b/i;
@@ -69,6 +69,14 @@ export function guard(input) {
     const wholeTree = /\s(\.\/?|\*|\.\\)(\s|$)/.test(search + ' ') || (/^rg\b/.test(search) && !/\s[\w./\\-]+\/?\s*$/.test(search.replace(/^rg\s+(-\S+\s+)*\S+/, '')));
     if (cfg.blind && search && /\s(-\w*[rR]\w*|--recursive)\b|^rg\b/.test(search) && wholeTree && !/--exclude-dir[= ]?\S*signoff|-g\s*['"]?!/.test(search)) {
       return deny(`recursive searches must exclude ${specDir} because the Kane specs are hidden (for example add --exclude-dir=${cfg.specs}).`);
+    }
+    // Redirects only count as a write to the file they point at ("2>/dev/null" next to a
+    // `cat signoff.config.json` is a read, not a write).
+    for (const m of cmd.matchAll(/\d?>>?\|?\s*("[^"]+"|'[^']+'|[^\s;&|()]+)/g)) {
+      const target = m[1].replace(/^["']|["']$/g, '');
+      if (/^&\d$|^\/dev\/null$|^nul$/i.test(target)) continue;
+      const r = rel(target);
+      if (!r.startsWith('..') && (isProtected(r, cfg) || inSpecs(r))) return locked(`\`${r}\``);
     }
     if (!WRITE_SHELL.test(cmd)) return null;
     if (mentionsSpecs) return locked('Spec files (*_test.md)');
