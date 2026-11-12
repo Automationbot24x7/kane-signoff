@@ -177,7 +177,9 @@ async function tick() {
     $('url').textContent = b.url && b.url !== 'about:blank' ? b.url : 'about:blank';
     $('driver').innerHTML = busy ? '<span class="dot on"></span>Kane CLI is driving this browser' : '';
     $('screen').className = 'screen' + (busy ? '' : ' idle');
-    $('hint').style.display = b.frameAt ? 'none' : '';
+    const blank = !b.frameAt || !b.url || b.url === 'about:blank';
+    $('hint').style.display = blank ? '' : 'none';
+    $('shot').style.visibility = blank ? 'hidden' : 'visible';
     if (b.frameAt && b.frameAt !== lastFrame) { lastFrame = b.frameAt; const img = new Image(); img.onload = () => { $('shot').src = img.src; }; img.src = '/kane.jpg?t=' + b.frameAt; }
   } catch {}
 }
