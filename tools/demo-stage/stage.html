@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Signoff · live run</title>
+<style>
+  :root {
+    --bg: #0c0d0a; --panel: #141511; --panel2: #10110d; --line: #262820; --line2: #1d1f19;
+    --text: #ecebe4; --muted: #a2a296; --faint: #6c6d63;
+    --pass: #c6f36b; --pass-ink: #172006; --fail: #ff7a63; --run: #9fb4ff; --warn: #f5c56b;
+    --mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+    --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--text); font: 16px/1.45 var(--sans); -webkit-font-smoothing: antialiased; }
+
+  header { position: absolute; left: 24px; right: 24px; top: 0; height: 76px; display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--line2); }
+  .mark { width: 38px; height: 38px; border-radius: 10px; background: #121310; border: 1px solid var(--line); display: grid; place-items: center; flex: none; }
+  .brand { font-weight: 650; font-size: 21px; letter-spacing: -0.01em; white-space: nowrap; }
+  .brand small { display: block; font: 13px/1.2 var(--mono); color: var(--muted); font-weight: 400; }
+  .ticket { flex: 1; min-width: 0; margin-left: 18px; font: 15px/1.3 var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ticket b { color: var(--text); font-weight: 500; }
+  .chip { font: 13px/1 var(--mono); padding: 8px 11px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .chip.hid { color: var(--warn); border-color: #f5c56b44; }
+  .clock { font: 600 22px/1 var(--mono); color: var(--text); min-width: 112px; text-align: right; }
+  .clock small { display: block; font: 11px/1.4 var(--mono); color: var(--faint); font-weight: 400; letter-spacing: .08em; text-transform: uppercase; }
+
+  .agent { position: absolute; left: 24px; top: 100px; width: 720px; bottom: 24px; background: var(--panel); border: 1px solid var(--line2); border-radius: 16px; display: flex; flex-direction: column; overflow: hidden; }
+  .phead { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line2); font: 600 13px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .phead .st { margin-left: auto; letter-spacing: .02em; text-transform: none; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); }
+  .dot.on { background: var(--run); animation: pulse 1.4s infinite; }
+  .dot.wait { background: var(--warn); animation: pulse 1.4s infinite; }
+  .dot.done { background: var(--pass); }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 #9fb4ff66; } 70% { box-shadow: 0 0 0 7px #9fb4ff00; } 100% { box-shadow: 0 0 0 0 #9fb4ff00; } }
+  .log { flex: 1; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 10px 18px 16px; gap: 8px; }
+  .log > * { flex: none; }
+  .note { border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font: 14px/1.45 var(--mono); color: var(--muted); }
+  .say { font-size: 16px; color: var(--text); white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 9; -webkit-box-orient: vertical; overflow: hidden; }
+  .say b { font-weight: 650; }
+  .say code { font: 14px/1 var(--mono); color: #d9d6c8; background: #ffffff0d; padding: 1px 5px; border-radius: 4px; }
+  .tool { font: 14px/1.45 var(--mono); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tool i { font-style: normal; color: var(--muted); display: inline-block; width: 18px; }
+  .guard { font: 14px/1.45 var(--mono); color: var(--warn); border-left: 3px solid var(--warn); padding: 4px 10px; background: #f5c56b0d; border-radius: 0 6px 6px 0; }
+  .hook { border: 1px solid #ff7a6355; background: #ff7a630d; border-radius: 12px; padding: 12px 14px; }
+  .hook h4 { margin: 0 0 6px; font: 600 13px/1.3 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--fail); }
+  .hook pre { margin: 0; white-space: pre-wrap; font: 13px/1.45 var(--mono); color: #f3d6cf; max-height: 330px; overflow: hidden; }
+  .hook.port { border-color: #f5c56b55; background: #f5c56b0d; } .hook.port h4 { color: var(--warn); } .hook.port pre { color: #efe3c4; }
+  .signedoff { border: 1px solid #c6f36b55; background: #c6f36b12; border-radius: 12px; padding: 12px 14px; font: 600 15px/1.4 var(--mono); color: var(--pass); }
+  .ticketline { font: 15px/1.45 var(--mono); color: var(--run); }
+
+  .browser { position: absolute; left: 768px; right: 24px; top: 100px; height: 674px; background: var(--panel2); border: 1px solid var(--line2); border-radius: 16px; overflow: hidden; }
+  .bar { height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-bottom: 1px solid var(--line2); background: var(--panel); }
+  .bar .d { width: 11px; height: 11px; border-radius: 50%; background: #2c2e26; }
+  .url { flex: 1; margin-left: 8px; height: 26px; border-radius: 8px; background: #0b0c09; border: 1px solid var(--line2); font: 13px/26px var(--mono); color: var(--muted); padding: 0 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .driver { font: 12px/1 var(--mono); color: var(--run); white-space: nowrap; display: flex; gap: 8px; align-items: center; }
+  .screen { position: absolute; left: 0; right: 0; top: 40px; bottom: 0; background: #08090a; display: grid; place-items: center; }
+  .screen img { width: 100%; height: 100%; object-fit: contain; transition: opacity .3s, filter .3s; }
+  .screen.idle img { opacity: .35; filter: grayscale(.7); }
+  .screen .hint { position: absolute; font: 15px/1.5 var(--mono); color: var(--faint); text-align: center; }
+
+  .verdict { position: absolute; left: 768px; right: 24px; top: 790px; bottom: 24px; background: var(--panel); border: 1px solid var(--line2); border-radius: 16px; display: grid; grid-template-columns: 430px 1fr; overflow: hidden; }
+  .vl { padding: 18px 20px; border-right: 1px solid var(--line2); display: flex; flex-direction: column; justify-content: space-between; }
+  .vlabel { font: 600 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .phase { font-size: 27px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.12; margin-top: 10px; }
+  .phase.pass { color: var(--pass); } .phase.fail { color: var(--fail); } .phase.run { color: var(--run); }
+  .pips { display: flex; gap: 8px; }
+  .pip { width: 40px; height: 40px; border-radius: 11px; border: 1px solid var(--line); display: grid; place-items: center; font: 600 14px/1 var(--mono); color: var(--faint); }
+  .pip.failed { background: #ff7a6318; border-color: #ff7a6366; color: var(--fail); }
+  .pip.passed { background: var(--pass); border-color: transparent; color: var(--pass-ink); }
+  .pip.current { border-color: var(--run); color: var(--run); }
+  .vr { padding: 12px 20px; display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
+  .spec { display: grid; grid-template-columns: 92px 220px 1fr; align-items: center; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line2); min-width: 0; }
+  .spec:last-child { border-bottom: 0; }
+  .badge { font: 600 11px/1 var(--mono); padding: 6px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: .05em; text-align: center; border: 1px solid var(--line); color: var(--faint); }
+  .badge.passed { background: var(--pass); color: var(--pass-ink); border-color: transparent; }
+  .badge.failed, .badge.error, .badge.timeout { background: var(--fail); color: #2a0c06; border-color: transparent; }
+  .badge.running { color: var(--run); border-color: #9fb4ff77; }
+  .sname { font: 14px/1.2 var(--mono); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sstep { font: 13px/1.35 var(--mono); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bug { margin-top: 6px; font: 14px/1.4 var(--sans); color: #ffd3c9; }
+  .bug b { color: var(--fail); font-weight: 650; }
+</style>
+</head>
+<body>
+<header>
+  <div class="mark"><svg width="20" height="20" viewBox="0 0 32 32"><path d="M6 16.5l6.5 6.5L26 9" stroke="#c6f36b" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  <div class="brand">Signoff <small>live run · examples/tabby</small></div>
+  <div class="ticket" id="ticket"></div>
+  <span class="chip hid" id="hidden">specs hidden from the agent</span>
+  <span class="chip">Kane CLI · real Chrome</span>
+  <div class="clock" id="clock">00:00<small>real time</small></div>
+</header>
+
+<section class="agent">
+  <div class="phead">Coding agent <span class="st"><span class="dot" id="adot"></span><span id="astate">starting</span></span></div>
+  <div class="log" id="log"></div>
+</section>
+
+<section class="browser">
+  <div class="bar"><span class="d"></span><span class="d"></span><span class="d"></span><div class="url" id="url">about:blank</div><div class="driver" id="driver"></div></div>
+  <div class="screen idle" id="screen"><img id="shot" alt=""><div class="hint" id="hint">Kane opens the app here when the agent tries to finish.</div></div>
+</section>
+
+<section class="verdict">
+  <div class="vl">
+    <div><div class="vlabel">Kane CLI verdict</div><div class="phase" id="phase">Waiting for the agent to finish</div></div>
+    <div class="pips" id="pips"></div>
+  </div>
+  <div class="vr" id="specs"></div>
+</section>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); const m = Math.floor(s / 60); return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+let state = null, lastFrame = 0;
+const mdLite = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
+
+function renderAgent(a, sig) {
+  const items = a.items.slice(-40);
+  const html = [`<div class="ticketline">▸ ${esc(state.ticket)}</div>`];
+  for (const it of items) {
+    if (it.kind === 'say') html.push('<div class="say">' + mdLite(it.text) + '</div>');
+    else if (it.kind === 'tool') html.push(`<div class="tool"><i>${esc(it.icon)}</i>${esc(it.text)}</div>`);
+    else if (it.kind === 'guard') html.push(`<div class="guard">⛔ ${esc(it.text)}</div>`);
+    else if (it.kind === 'hook') {
+      const port = /already answering/.test(it.text);
+      html.push(`<div class="hook ${port ? 'port' : ''}"><h4>${port ? 'Signoff: port busy' : 'Kane did not sign off · sent back to the agent'}</h4><pre>${esc(it.text.split('\n').filter((l) => !/^\s*(Evidence pack|Screenshot of what)/.test(l)).slice(0, 18).join('\n'))}</pre></div>`);
+    } else if (it.kind === 'signoff') html.push(/signed off/i.test(it.text) ? `<div class="signedoff">✓ ${esc(it.text)}</div>` : `<div class="note">${esc(it.text)}</div>`);
+  }
+  $('log').innerHTML = html.join('');
+  const kaneBusy = sig.live && /testing|starting app/i.test(sig.live.phase ?? '');
+  const st = a.status === 'done' ? ['done', 'finished'] : kaneBusy ? ['wait', 'tried to finish · waiting for Kane'] : a.items.length ? ['on', 'working'] : ['on', 'reading the brief'];
+  $('adot').className = 'dot ' + st[0];
+  $('astate').textContent = st[1];
+}
+
+function renderVerdict(sig) {
+  const live = sig.live;
+  const rounds = sig.ledger.filter((e) => e.kind === 'round' && e.status !== 'port_busy');
+  const max = sig.config.maxRounds;
+  const busy = live && /testing|starting app/i.test(live.phase ?? '');
+  let text = 'Waiting for the agent to finish', cls = '';
+  if (busy) { text = live.phase.replace('Kane is testing ', 'Kane is testing\n'); cls = 'run'; }
+  else if (live?.phase === 'signed off') { text = 'Signed off'; cls = 'pass'; }
+  else if (live?.phase === 'sent back to the agent') { text = 'Bug found · sent back\nto the agent'; cls = 'fail'; }
+  else if (live?.phase === 'gave up') { text = 'Not signed off'; cls = 'fail'; }
+  else if (live?.phase === 'port busy') { text = 'Port busy'; cls = 'fail'; }
+  $('phase').className = 'phase ' + cls;
+  $('phase').innerHTML = esc(text).replace('\n', '<br>');
+  const pips = [];
+  for (let i = 1; i <= max; i++) {
+    const r = rounds.find((x) => x.round === i);
+    const c = r ? (r.status === 'passed' ? 'passed' : 'failed') : (busy && live.round === i ? 'current' : '');
+    pips.push(`<div class="pip ${c}">${i}</div>`);
+  }
+  $('pips').innerHTML = pips.join('');
+  if (live?.specs) {
+    const bug = (live.bugs ?? [])[0];
+    $('specs').innerHTML = live.specs.map((s) => {
+      const last = (s.steps ?? []).filter((x) => x.text).slice(-1)[0];
+      return `<div class="spec"><span class="badge ${esc(s.status)}">${esc(s.status)}</span><span class="sname">${esc(s.spec)}</span><span class="sstep">${esc(last?.text ?? '')}</span></div>`;
+    }).join('') + (bug && !busy ? `<div class="bug"><b>Bug Kane found:</b> ${esc(bug.title ?? bug.error)}</div>` : '');
+  }
+}
+
+async function tick() {
+  try {
+    state = await (await fetch('/api/state', { cache: 'no-store' })).json();
+    $('ticket').innerHTML = `Ticket <b>${esc(state.ticket)}</b>`;
+    $('hidden').style.display = state.signoff.config.blind ? '' : 'none';
+    renderAgent(state.agent, state.signoff);
+    renderVerdict(state.signoff);
+    const b = state.browser;
+    const busy = state.signoff.live && /testing/i.test(state.signoff.live.phase ?? '');
+    $('url').textContent = b.url && b.url !== 'about:blank' ? b.url : 'about:blank';
+    $('driver').innerHTML = busy ? '<span class="dot on"></span>Kane CLI is driving this browser' : '';
+    $('screen').className = 'screen' + (busy ? '' : ' idle');
+    $('hint').style.display = b.frameAt ? 'none' : '';
+    if (b.frameAt && b.frameAt !== lastFrame) { lastFrame = b.frameAt; const img = new Image(); img.onload = () => { $('shot').src = img.src; }; img.src = '/kane.jpg?t=' + b.frameAt; }
+  } catch {}
+}
+setInterval(() => { if (state) $('clock').firstChild.nodeValue = fmt(Date.now() - state.startedAt); }, 250);
+setInterval(tick, 300);
+tick();
+</script>
+</body>
+</html>
