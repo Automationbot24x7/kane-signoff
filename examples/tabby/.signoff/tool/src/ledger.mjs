@@ -1,6 +1,6 @@
 // The ledger is Signoff's memory: every round Kane ran, what it found, and
 // what the agent was told. The viewer reads it; receipts are written from it.
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
@@ -20,13 +20,27 @@ export function readLedger(root) {
   return readFileSync(p, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
 }
 
-/** live.json is rewritten atomically so the viewer never reads half a file. */
+const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+/**
+ * live.json is rewritten atomically so the viewer never reads half a file.
+ * It is only a progress display, so it must never break the gate: on Windows a rename
+ * can fail for a moment (EPERM/EBUSY) while a viewer or a virus scanner has the file open.
+ */
 export function writeLive(root, live) {
-  const p = join(root, LIVE);
-  mkdirSync(dirname(p), { recursive: true });
-  const tmp = p + '.tmp';
-  writeFileSync(tmp, JSON.stringify({ ...live, updated: new Date().toISOString() }, null, 2));
-  renameSync(tmp, p);
+  try {
+    const p = join(root, LIVE);
+    mkdirSync(dirname(p), { recursive: true });
+    const data = JSON.stringify({ ...live, updated: new Date().toISOString() }, null, 2);
+    const tmp = `${p}.${process.pid}.tmp`;
+    writeFileSync(tmp, data);
+    for (let i = 0; i < 8; i++) {
+      try { renameSync(tmp, p); return; }
+      catch (err) { if (!['EPERM', 'EBUSY', 'EACCES'].includes(err.code)) throw err; pause(25 * (i + 1)); }
+    }
+    writeFileSync(p, data);
+    rmSync(tmp, { force: true });
+  } catch { /* best effort: a stale progress display is better than a broken gate */ }
 }
 
 export function readJson(p, fallback) {
