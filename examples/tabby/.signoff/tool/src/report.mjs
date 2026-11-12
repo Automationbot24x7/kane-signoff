@@ -55,6 +55,11 @@ export function agentReport(root, { round, maxRounds, results, evidence, lockPro
           if (f.url) L.push(`  Page: ${f.url}`);
           if (f.rootCause) L.push(`  Kane's root cause: ${f.rootCause}`);
           if (f.fix) L.push(`  Kane's suggested fix: ${f.fix}`);
+          if (/^(automation|test)/i.test(f.category ?? '')) {
+            // Kane's triage blames the test, not the app. The assertion still failed, and the
+            // agent cannot change the spec, so point it at the source of truth instead.
+            L.push(`  Note: Kane's triage (${f.category}) suspects the spec rather than the app. The specs are locked and are the definition of done, so check the behaviour against the brief: if the app breaks the brief, fix the app. If you are sure the spec contradicts the brief, finish and explain the conflict to the human instead of working around it.`);
+          }
         }
         if (t.console.length) { L.push('  Browser console:'); for (const c of t.console.slice(0, 5)) L.push(`    [${c.level}] ${c.msg}`); }
         if (t.network.length) { L.push('  Failed network calls:'); for (const n of t.network.slice(0, 5)) L.push(`    ${n.method} ${n.url} -> ${n.status}${n.body ? `  ${n.body}` : ''}`); }
