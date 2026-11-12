@@ -2,6 +2,8 @@
 
 **Your coding agent is not done until Kane signs off.**
 
+**[Watch the 3-minute demo](https://youtu.be/z3iJZXUgozs)**: a real run where the agent says "done", Kane CLI catches a bug in a real browser, and the agent is sent back until Kane signs off.
+
 Coding agents say "done" when the code compiles and their own checks pass. Signoff makes "done" mean *a real browser used the app and it worked*.
 
 When the agent tries to finish, a Stop hook runs your plain-English [Kane CLI](https://www.testmuai.com/kane-cli/) specs in Chrome. If any spec fails, the agent is **not allowed to stop**. Its next instruction is Kane's diagnosis: the bug Kane found, the root cause, the console errors and failed requests at that step, and the screenshot Kane saw. It fixes the code and tries to finish again. Kane re-runs. Repeat until Kane signs off.
