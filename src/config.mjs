@@ -13,7 +13,9 @@ export const DEFAULTS = {
   headless: false,                // show the real Chrome window while Kane works
   readyTimeout: 60,               // seconds to wait for the app to answer
   specTimeout: 900,               // seconds per spec
-  protect: ['signoff/**', 'signoff.config.json', '.signoff/spec-lock.json', '.claude/settings.json'],
+  // The agent may read these but never write them: the specs, the gate's config and
+  // its own state (so it cannot switch the gate off or forge a pass).
+  protect: ['signoff/**', 'signoff.config.json', '.signoff/**', '.claude/settings.json', '.claude/settings.local.json'],
 };
 
 export function findRoot(start = process.cwd()) {
@@ -29,7 +31,8 @@ export function findRoot(start = process.cwd()) {
 
 export function loadConfig(root) {
   const raw = JSON.parse(readFileSync(join(root, CONFIG_FILE), 'utf8'));
-  return { ...DEFAULTS, ...raw, protect: [...new Set([...(DEFAULTS.protect), ...(raw.protect ?? [])])] };
+  const specs = (raw.specs ?? DEFAULTS.specs).replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '');
+  return { ...DEFAULTS, ...raw, specs, protect: [...new Set([...DEFAULTS.protect, `${specs}/**`, ...(raw.protect ?? [])])] };
 }
 
 /** All *_test.md files under the specs folder, sorted, as paths relative to root. */

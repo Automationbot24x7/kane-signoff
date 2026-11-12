@@ -150,8 +150,13 @@ export async function gate({ mode = 'hook', input = {}, force = false, log = () 
   writeJson(statePath, state);
   mkdirSync(roundDir, { recursive: true });
   writeFileSync(join(roundDir, 'report.md'), reason + '\n');
-  appendLedger(root, { kind: 'round', session, round, status: 'failed', fp, head, results: summaryRows, credits, report: reason });
-  writeLive(root, { ...live, phase: round >= cfg.maxRounds ? 'gave up' : 'sent back to the agent', results: summaryRows, report: reason });
+  const roundsBase = join(root, '.signoff', 'rounds');
+  const bugs = [];
+  for (const [spec, ev] of evidence) for (const t of ev.tests) for (const f of t.failures) {
+    bugs.push({ spec, title: f.title, error: f.error, rootCause: f.rootCause, fix: f.fix, severity: f.severity, shots: t.shots.map((p) => p.slice(roundsBase.length + 1).split('\\').join('/')), console: t.console.slice(0, 3), network: t.network.slice(0, 3) });
+  }
+  appendLedger(root, { kind: 'round', session, round, status: 'failed', fp, head, results: summaryRows, credits, bugs, report: reason });
+  writeLive(root, { ...live, phase: round >= cfg.maxRounds ? 'gave up' : 'sent back to the agent', results: summaryRows, bugs, report: reason });
 
   if (round >= cfg.maxRounds) {
     writeReceipt(root, receipt({ root, status: 'failed', rounds: round, results, fp, head, credits, gaveUp: true }));
