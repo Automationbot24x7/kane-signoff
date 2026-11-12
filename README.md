@@ -20,7 +20,7 @@ agent: "Done. I checked five states in headless Edge and they match my hand calc
   └─ PASS ─► the agent may stop. A receipt records the specs, rounds, credits and Test Manager links.
 ```
 
-That trace is a real run, not a mock-up: [read the full run log](docs/runs/2026-11-12-coupon.md).
+That trace is a real run, not a mock-up: [read the full run log](docs/runs/2026-11-12-coupon.md). The agent shipped the same bug in 5 of 5 runs of this ticket, and Kane caught it every time; [the run in the demo video](docs/runs/2026-11-13-recorded-take.md) is logged minute by minute.
 
 | Before: coupon applied, $108.00 | Kane types a bad code: message shows, discount silently gone, $120.00 |
 |---|---|
