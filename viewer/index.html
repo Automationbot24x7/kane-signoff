@@ -102,7 +102,14 @@
 
   .stamp { margin: 26px 0 0; padding: 22px; border-radius: 16px; border: 1px dashed #c6f36b55; display: none; }
   .stamp.show { display: block; }
-  .stamp pre { margin: 0; white-space: pre-wrap; font: 12.5px/1.6 var(--mono); color: var(--muted); }
+  .stamp h3 { margin: 0 0 6px; font: 600 12px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--pass); }
+  .stamp p { margin: 8px 0 14px; color: var(--text); font-size: 15px; }
+  .stamp p strong { color: var(--pass); }
+  .stamp code { font: 12px/1 var(--mono); color: var(--muted); }
+  .stamp table { border-collapse: collapse; width: 100%; margin: 6px 0 14px; font: 12.5px/1.4 var(--mono); }
+  .stamp td, .stamp th { text-align: left; padding: 7px 10px 7px 0; border-bottom: 1px solid var(--line-soft); color: var(--muted); vertical-align: top; }
+  .stamp th { color: var(--faint); font-weight: 500; }
+  .stamp a { color: var(--pass); }
   footer { margin-top: 34px; color: var(--faint); font: 12px/1.6 var(--mono); }
 
   .lightbox { position: fixed; inset: 0; background: #000d; display: none; place-items: center; z-index: 9; cursor: zoom-out; padding: 24px; }
@@ -142,7 +149,7 @@
     </section>
   </div>
 
-  <section class="stamp" id="stamp"><pre id="receipt"></pre></section>
+  <section class="stamp" id="stamp"><div id="receipt"></div></section>
   <footer>Updates every second. Specs live in <span id="specDir">signoff/</span>. The agent can read them but never change them.</footer>
 </div>
 <div class="lightbox" id="lightbox"><img alt="What Kane saw"></div>
@@ -152,6 +159,31 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const ago = (iso) => { if (!iso) return ''; const s = Math.max(0, (Date.now() - new Date(iso)) / 1000); return s < 60 ? `${Math.round(s)}s ago` : s < 3600 ? `${Math.round(s / 60)}m ago` : new Date(iso).toLocaleString(); };
 let lastJson = '';
+
+// Just enough Markdown for the receipt: headings, paragraphs, tables, bold, code, links.
+function inline(t) {
+  return esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+}
+function md(src) {
+  const out = []; const lines = src.split(/\r?\n/); let i = 0;
+  while (i < lines.length) {
+    const l = lines[i];
+    if (/^#\s/.test(l)) { out.push(`<h3>${inline(l.replace(/^#+\s/, ''))}</h3>`); i++; continue; }
+    if (/^\|/.test(l)) {
+      const rows = []; while (i < lines.length && /^\|/.test(lines[i])) rows.push(lines[i++]);
+      const cells = (r) => r.replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+      const body = rows.filter((r) => !/^\|[-|\s]+\|$/.test(r));
+      const head = cells(body[0]);
+      const hasHead = head.some((c) => c);
+      out.push('<table>' + (hasHead ? `<tr>${head.map((c) => `<th>${inline(c)}</th>`).join('')}</tr>` : '') + body.slice(1).map((r) => `<tr>${cells(r).map((c) => `<td>${inline(c)}</td>`).join('')}</tr>`).join('') + '</table>');
+      continue;
+    }
+    if (l.trim()) out.push(`<p>${inline(l)}</p>`);
+    i++;
+  }
+  return out.join('');
+}
 
 function groupRounds(ledger) {
   // The latest session that has rounds; show its rounds in order.
@@ -252,7 +284,7 @@ function render(s) {
   // Receipt
   const signed = last?.status === 'passed' && s.receipt;
   $('stamp').className = 'stamp' + (signed ? ' show' : '');
-  if (signed) $('receipt').textContent = s.receipt;
+  if (signed) $('receipt').innerHTML = md(s.receipt);
   if (s.config.specs[0]) $('specDir').textContent = s.config.specs[0].split('/').slice(0, -1).join('/') + '/';
 }
 
