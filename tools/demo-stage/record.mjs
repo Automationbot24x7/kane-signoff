@@ -34,10 +34,14 @@ await page.send('Emulation.setDeviceMetricsOverride', { width: 1920, height: 108
 await page.send('Page.navigate', { url: URL_ });
 await sleep(2500);
 
-let n = 0;
+let n = 0, lastSaved = 0;
 const t0 = Date.now();
+const MIN_GAP = 1000 / Number(arg('fps', 10)); // keep at most this many frames per second
 page.on((m) => {
   if (m.method !== 'Page.screencastFrame') return;
+  const now = Date.now();
+  if (now - lastSaved < MIN_GAP) { page.send('Page.screencastFrameAck', { sessionId: m.params.sessionId }).catch(() => {}); return; }
+  lastSaved = now;
   const file = String(++n).padStart(6, '0') + '.jpg';
   writeFileSync(join(OUT, 'frames', file), Buffer.from(m.params.data, 'base64'));
   appendFileSync(join(OUT, 'frames.ndjson'), JSON.stringify({ file, t: Date.now() }) + '\n');
