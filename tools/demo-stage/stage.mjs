@@ -26,7 +26,11 @@ const SINCE = Number(arg('since', startedAt)); // show ledger/live entries newer
 // ---------- the coding agent's log ----------
 const projectFwd = PROJECT.split('\\').join('/');
 // Never show the machine's user folder on screen.
-const scrub = (t) => String(t ?? '').split(PROJECT).join('.').split(projectFwd).join('.').replace(/[A-Za-z]:[\\/]+Users[\\/]+[^\\/\s"']+/g, '~');
+// Covers Windows (C:\Users\x, C:/Users/x), Git Bash (/c/Users/x), macOS (/Users/x) and Linux (/home/x) homes,
+// and shortens long temp folders.
+const scrub = (t) => String(t ?? '').split(PROJECT).join('.').split(projectFwd).join('.')
+  .replace(/(?:[A-Za-z]:|\/[a-zA-Z](?=\/Users\b))?[\\/]+(?:Users|home)[\\/]+[^\\/\s"']+/g, '~')
+  .replace(/AppData[\\/]+Local[\\/]+Temp[\\/]+[^\s"']*/g, 'AppData/Local/Temp/…');
 const shortPath = (p) => String(p ?? '').split('\\').join('/').replace(projectFwd + '/', '').replace(projectFwd, '.');
 
 function toolLine(c) {
