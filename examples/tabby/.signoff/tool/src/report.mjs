@@ -22,7 +22,7 @@ export function failingSteps(events) {
   return out.filter((x) => { const k = x.text; if (seen.has(k)) return false; seen.add(k); return true; }).slice(-4);
 }
 
-export function agentReport(root, { round, maxRounds, results, evidence, lockProblem, serverProblem }) {
+export function agentReport(root, { round, maxRounds, results, evidence, lockProblem, serverProblem, blind }) {
   const L = [];
   if (lockProblem) {
     L.push(`Signoff refused: the locked Kane specs were changed.`);
@@ -66,7 +66,9 @@ export function agentReport(root, { round, maxRounds, results, evidence, lockPro
     if (r.status === 'error' && r.stderrTail) L.push('  Kane output:', ...r.stderrTail.split('\n').slice(-6).map((x) => '    ' + x));
   }
   L.push('');
-  L.push('Fix the application code so these specs pass. Do not edit the specs in the signoff folder: they are locked, and changing them is rejected. When you have fixed it, finish again and Kane will re-run the specs.');
+  L.push(blind
+    ? 'Fix the application so it does what these steps describe. The specs themselves are hidden from you on purpose (like a hold-out test set): work from the brief and the findings above. When you have fixed it, finish again and Kane will re-run every spec.'
+    : 'Fix the application code so these specs pass. Do not edit the specs in the signoff folder: they are locked, and changing them is rejected. When you have fixed it, finish again and Kane will re-run the specs.');
   return L.join('\n');
 }
 

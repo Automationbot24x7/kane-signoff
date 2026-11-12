@@ -10,7 +10,8 @@ export const DEFAULTS = {
   restart: true,                  // restart the app before each round (for servers without hot reload)
   specs: 'signoff',               // folder of Kane _test.md specs
   maxRounds: 4,                   // how many times Kane may send the agent back before giving up
-  headless: false,                // show the real Chrome window while Kane works
+  headless: true,                 // false shows the real Chrome window while Kane works
+  blind: false,                   // true hides the specs from the agent: it learns only from Kane's failures
   readyTimeout: 60,               // seconds to wait for the app to answer
   specTimeout: 900,               // seconds per spec
   // The agent may read these but never write them: the specs, the gate's config and

@@ -32,15 +32,17 @@ export function stopServer(root) {
  * Returns { ok, started, log }.
  */
 export async function ensureServer(root, cfg, log = () => {}) {
-  const owned = existsSync(join(root, PID_FILE));
-  if (cfg.start && cfg.restart && owned) {
-    log('restarting app');
-    stopServer(root);
-    await waitDown(cfg.url, 8000);
-  } else if (await isUp(cfg.url)) {
-    return { ok: true, started: false };
+  // No start command: the human runs the app; test whatever answers.
+  if (!cfg.start) {
+    if (await isUp(cfg.url)) return { ok: true, started: false };
+    return { ok: false, started: false, reason: `Nothing is answering at ${cfg.url} and no "start" command is configured.` };
   }
-  if (!cfg.start) return { ok: false, started: false, reason: `Nothing is answering at ${cfg.url} and no "start" command is configured.` };
+  // With a start command, Kane must test the app from THIS folder, freshly started,
+  // never a stale server left on the port by something else.
+  if (existsSync(join(root, PID_FILE))) { stopServer(root); await waitDown(cfg.url, 8000); }
+  if (await isUp(cfg.url)) {
+    return { ok: false, started: false, foreign: true, reason: `Something else is already answering at ${cfg.url}, so Signoff cannot start this app there and be sure Kane tests this code.` };
+  }
 
   mkdirSync(join(root, '.signoff', 'state'), { recursive: true });
   const logPath = join(root, '.signoff', 'server.log');

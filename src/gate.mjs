@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { findRoot, loadConfig, listSpecs } from './config.mjs';
 import { checkLock } from './lock.mjs';
-import { ensureServer } from './server.mjs';
+import { ensureServer, stopServer } from './server.mjs';
 import { runSpec, newestEvidence } from './kane.mjs';
 import { readEvidence } from './evidence.mjs';
 import { agentReport, receipt } from './report.mjs';
@@ -79,7 +79,20 @@ export async function gate({ mode = 'hook', input = {}, force = false, log = () 
 
   // 3. Make sure the app is up.
   const server = await ensureServer(root, cfg, log);
+  if (server.foreign) {
+    // Usually a dev server the agent left running. Ask once, then hand it to the human.
+    ss.foreign = (ss.foreign ?? 0) + 1;
+    ss.rounds -= 1;
+    writeJson(statePath, state);
+    appendLedger(root, { kind: 'round', session, round, status: 'port_busy', fp, head, reason: server.reason });
+    writeLive(root, { ...live, phase: 'port busy', reason: server.reason });
+    if (ss.foreign > 1) return allow(`Signoff: ${server.reason} Stop whatever is using that port and finish again. Nothing was verified.`);
+    return { decision: 'block', reason: `${server.reason}
+
+If you started a server on that port, stop it now: Signoff starts the app itself (\`${cfg.start}\`) so Kane always tests this exact code. Then finish again.` };
+  }
   if (!server.ok) {
+    if (server.started) stopServer(root);
     const reason = agentReport(root, { round, maxRounds: cfg.maxRounds, serverProblem: server });
     state.lastCheck = { fp, status: 'failed', report: reason };
     writeJson(statePath, state);
@@ -89,7 +102,14 @@ export async function gate({ mode = 'hook', input = {}, force = false, log = () 
     return { decision: 'block', reason };
   }
 
-  // 4. Run every spec with Kane CLI.
+  // 4. Run every spec with Kane CLI, then always stop the app we started.
+  try {
+    return await runRound();
+  } finally {
+    if (server.started) stopServer(root);
+  }
+
+  async function runRound() {
   const results = [];
   const evidence = new Map();
   let credits = 0;
@@ -163,6 +183,7 @@ export async function gate({ mode = 'hook', input = {}, force = false, log = () 
     return allow(`Signoff gave up after ${round} rounds: Kane still fails ${results.length - passed} spec(s). Report: ${join('.signoff', 'rounds', `${session.slice(0, 8)}-r${round}`, 'report.md')}`);
   }
   return { decision: 'block', reason };
+  }
 }
 
 function writeReceipt(root, text) {
