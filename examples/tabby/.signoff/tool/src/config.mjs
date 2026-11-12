@@ -11,6 +11,7 @@ export const DEFAULTS = {
   maxRounds: 4,                   // how many times Kane may send the agent back before giving up
   headless: true,                 // false shows the real Chrome window while Kane works
   blind: false,                   // true hides the specs from the agent: it learns only from Kane's failures
+  cdpEndpoint: null,              // e.g. "http://127.0.0.1:9222": run Kane in a Chrome you started (to watch or record it)
   readyTimeout: 60,               // seconds to wait for the app to answer
   specTimeout: 900,               // seconds per spec
   // The agent may read these but never write them: the specs, the gate's config and
