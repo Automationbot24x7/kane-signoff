@@ -1,5 +1,5 @@
 // Makes sure the app under test is answering before Kane opens it.
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { killTree } from './kane.mjs';
@@ -17,11 +17,31 @@ export async function isUp(url, timeoutMs = 2500) {
   } catch { return false; }
 }
 
+/** PID of the process listening on a TCP port, or null. */
+export function portOwner(port) {
+  try {
+    if (isWin) {
+      const out = execFileSync('netstat', ['-ano', '-p', 'TCP'], { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+      for (const line of out.split(/\r?\n/)) {
+        const m = line.trim().split(/\s+/);
+        if (m.length >= 5 && /LISTEN/i.test(m[3]) && m[1].endsWith(`:${port}`)) return Number(m[4]);
+      }
+      return null;
+    }
+    const out = execFileSync('lsof', ['-ti', `tcp:${port}`, '-sTCP:LISTEN'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return Number(out.split('\n')[0]) || null;
+  } catch { return null; }
+}
+
+const portOf = (url) => { const u = new URL(url); return Number(u.port) || (u.protocol === 'https:' ? 443 : 80); };
+
 export function stopServer(root) {
   const p = join(root, PID_FILE);
   if (!existsSync(p)) return false;
-  const pid = Number(readFileSync(p, 'utf8'));
-  killTree(pid);
+  // The file holds the shell's PID and, once the app answered, the PID that owns the port.
+  // On Windows the shell can exit and leave the app running, so kill both.
+  const pids = readFileSync(p, 'utf8').split(/\s+/).map(Number).filter(Boolean);
+  for (const pid of pids.reverse()) killTree(pid);
   rmSync(p, { force: true });
   return true;
 }
@@ -54,7 +74,11 @@ export async function ensureServer(root, cfg, log = () => {}) {
 
   const deadline = Date.now() + cfg.readyTimeout * 1000;
   while (Date.now() < deadline) {
-    if (await isUp(cfg.url)) return { ok: true, started: true };
+    if (await isUp(cfg.url)) {
+      const owner = portOwner(portOf(cfg.url));
+      if (owner && owner !== child.pid) writeFileSync(join(root, PID_FILE), `${child.pid} ${owner}`);
+      return { ok: true, started: true };
+    }
     if (child.exitCode !== null) break;
     await new Promise((r) => setTimeout(r, 500));
   }

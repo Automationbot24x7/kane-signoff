@@ -1,5 +1,5 @@
 // Runs Kane CLI in agent mode and reads its NDJSON stream.
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -70,10 +70,11 @@ export function runKane(args, { cwd, onEvent, timeoutMs = 15 * 60_000, env } = {
   });
 }
 
+/** Kill a process and its children, and wait for it: the hook exits right after, so this must be synchronous. */
 export function killTree(pid) {
   if (!pid) return;
   try {
-    if (isWin) spawn('taskkill', ['/pid', String(pid), '/t', '/f'], { stdio: 'ignore', windowsHide: true });
+    if (isWin) spawnSync('taskkill', ['/pid', String(pid), '/t', '/f'], { stdio: 'ignore', windowsHide: true, timeout: 15_000 });
     else process.kill(-pid, 'SIGTERM');
   } catch { try { process.kill(pid); } catch {} }
 }
