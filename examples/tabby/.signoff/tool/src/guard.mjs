@@ -3,12 +3,17 @@
 //     the gate's config, or the gate's own state (file tools and obvious shell routes).
 //  2. Hidden specs (config "blind": true): the agent may not read the specs either.
 //     It works from the brief and learns only from Kane's failures, like a hold-out set.
+//  3. No mass kills: commands that kill processes by name would take down Kane CLI,
+//     its browser and the app under test (and other programs); a single PID is fine.
 import { isAbsolute, relative, resolve } from 'node:path';
 import { findRoot, loadConfig, isProtected } from './config.mjs';
 
 const WRITE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 const READ_TOOLS = new Set(['Read', 'Grep', 'Glob', 'NotebookRead', 'LS']);
 const WRITE_SHELL = /(>>?|\btee\b|\bsed\b[^|;&]*\s-i|\bperl\b[^|;&]*\s-i|\brm\b|\bmv\b|\bcp\b|\btruncate\b|\bdd\b|Set-Content|Out-File|Add-Content|Remove-Item|Move-Item|Copy-Item|\bgit\s+(checkout|restore|rm|mv|stash)\b|writeFileSync|fs\.write|open\([^)]*['"]w)/i;
+
+// taskkill /IM, pkill, killall, Stop-Process -Name, Get-Process <name> | Stop-Process, kill -1, wmic ... delete
+const MASS_KILL = /\btaskkill\b[^|;&]*\s[/-]im\b|\bpkill\b|\bkillall\b|\bStop-Process\b[^|;&]*-(Name|ProcessName)\b|\bGet-Process\b[^|;]*\|\s*Stop-Process\b|\bkill\s+(-\w+\s+)*-1\b|\bwmic\b[^|;&]*\bprocess\b[^|;&]*\bdelete\b|\bkill\s+[^|;&]*\$\(\s*pgrep\b/i;
 
 const pathRegex = (stem) => {
   const esc = stem.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\//g, '[\\\\/]');
@@ -52,6 +57,11 @@ export function guard(input) {
 
   if (tool === 'Bash' || tool === 'PowerShell') {
     const cmd = String(ti.command ?? '');
+    // Killing processes by NAME takes Kane CLI, its browser and the app under test down with it
+    // (and anything else on the machine). Stopping one process by its PID is still allowed.
+    if (MASS_KILL.test(cmd)) {
+      return deny('that command kills every process with a given name, which would also kill Kane CLI, its browser and the app Signoff is testing (and other programs on this machine). Stop only a process you started, by its PID (for example `kill <pid>` or `taskkill /PID <pid>`).');
+    }
     const mentionsSpecs = /_test\.md/i.test(cmd) || pathRegex(specDir).test(cmd);
     if (cfg.blind && mentionsSpecs) return hidden();
     // A recursive search over the whole project (".", "./", "*" or no path for rg) would read the specs.

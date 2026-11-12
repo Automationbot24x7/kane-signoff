@@ -54,3 +54,19 @@ test('hidden specs: no reading, searching or cat-ing them', () => {
   assert.equal(b('Grep', { pattern: 'total', path: join(blindRoot, 'public') }), null);
   assert.equal(b('Bash', { command: 'grep -r total public' }), null);
 });
+
+test('blocks killing processes by name, allows stopping one PID', () => {
+  for (const command of [
+    '(pkill -f "node server.js" 2>/dev/null || taskkill //F //IM node.exe >/dev/null 2>&1)',
+    'taskkill /F /IM node.exe',
+    'killall node',
+    'Stop-Process -Name node -Force',
+    'Get-Process node | Stop-Process -Force',
+    'kill -9 -1',
+    'kill $(pgrep -f server.js)',
+    'wmic process where name="node.exe" delete',
+  ]) assert.ok(denied(run('Bash', { command })), command);
+  assert.equal(run('Bash', { command: 'kill 4312' }), null);
+  assert.equal(run('Bash', { command: 'taskkill /PID 4312 /F' }), null);
+  assert.equal(run('PowerShell', { command: 'Stop-Process -Id 4312' }), null);
+});
