@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signoff</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23121310'/%3E%3Cpath d='M8 16.5l5 5L24 10' stroke='%23c6f36b' stroke-width='3.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0d0e0b;
+    --panel: #15161288;
+    --panel-solid: #151612;
+    --line: #2a2c25;
+    --line-soft: #1f211b;
+    --text: #ecebe4;
+    --muted: #9a9a8f;
+    --faint: #66675e;
+    --pass: #c6f36b;
+    --pass-ink: #1a2408;
+    --fail: #ff7a63;
+    --fail-soft: #ff7a6318;
+    --run: #9fb4ff;
+    --warn: #f5c56b;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 28px 28px 80px; }
+
+  header { display: flex; align-items: center; gap: 16px; padding-bottom: 22px; border-bottom: 1px solid var(--line-soft); }
+  .mark { width: 34px; height: 34px; border-radius: 9px; background: #121310; border: 1px solid var(--line); display: grid; place-items: center; }
+  .brand { font-weight: 650; letter-spacing: -0.01em; font-size: 18px; }
+  .brand small { display: block; font: 12px/1.3 var(--mono); color: var(--muted); font-weight: 400; letter-spacing: 0; }
+  .spacer { flex: 1; }
+  .chip { font: 12px/1 var(--mono); padding: 7px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .chip b { color: var(--text); font-weight: 500; }
+  .chip.ok { color: var(--pass); border-color: #c6f36b44; }
+  .chip.bad { color: var(--fail); border-color: #ff7a6355; }
+
+  .hero { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: end; padding: 34px 0 26px; }
+  .phase-label { font: 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+  .phase { font-size: clamp(30px, 4.4vw, 52px); font-weight: 650; letter-spacing: -0.03em; line-height: 1.04; margin: 10px 0 0; }
+  .phase .dot { display: inline-block; width: .38em; height: .38em; border-radius: 50%; margin-right: .28em; vertical-align: .12em; background: var(--faint); }
+  .phase.running .dot { background: var(--run); box-shadow: 0 0 0 0 #9fb4ff88; animation: pulse 1.4s infinite; }
+  .phase.pass { color: var(--pass); } .phase.pass .dot { background: var(--pass); }
+  .phase.fail { color: var(--fail); } .phase.fail .dot { background: var(--fail); }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 #9fb4ff77; } 70% { box-shadow: 0 0 0 .5em #9fb4ff00; } 100% { box-shadow: 0 0 0 0 #9fb4ff00; } }
+  .meter { display: flex; gap: 6px; }
+  .pip { width: 46px; height: 46px; border-radius: 12px; border: 1px solid var(--line); display: grid; place-items: center; font: 600 15px/1 var(--mono); color: var(--faint); }
+  .pip.failed { border-color: #ff7a6366; color: var(--fail); background: var(--fail-soft); }
+  .pip.passed { border-color: transparent; color: var(--pass-ink); background: var(--pass); }
+  .pip.current { border-color: var(--run); color: var(--run); }
+  .meter-cap { font: 11px/1 var(--mono); color: var(--faint); text-align: right; margin-top: 8px; }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 22px; }
+  @media (max-width: 920px) { .grid { grid-template-columns: 1fr; } .hero { grid-template-columns: 1fr; } }
+  .card { background: var(--panel-solid); border: 1px solid var(--line-soft); border-radius: 16px; }
+  .card h2 { margin: 0; font: 600 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); padding: 18px 20px 14px; border-bottom: 1px solid var(--line-soft); display: flex; justify-content: space-between; }
+  .card h2 span { color: var(--faint); letter-spacing: .04em; text-transform: none; }
+
+  .spec { padding: 16px 20px; border-bottom: 1px solid var(--line-soft); }
+  .spec:last-child { border-bottom: 0; }
+  .spec-head { display: flex; align-items: center; gap: 10px; font: 13.5px/1.3 var(--mono); }
+  .badge { font: 600 11px/1 var(--mono); padding: 5px 7px; border-radius: 6px; letter-spacing: .04em; text-transform: uppercase; border: 1px solid var(--line); color: var(--muted); }
+  .badge.passed { background: var(--pass); color: var(--pass-ink); border-color: transparent; }
+  .badge.failed, .badge.error, .badge.timeout { background: var(--fail); color: #2a0c06; border-color: transparent; }
+  .badge.running { color: var(--run); border-color: #9fb4ff66; }
+  .spec-meta { margin-left: auto; color: var(--faint); font-size: 12px; }
+  .steps { list-style: none; margin: 12px 0 0; padding: 0; max-height: 300px; overflow: auto; }
+  .steps li { font: 12.5px/1.45 var(--mono); color: var(--muted); padding: 3px 0 3px 18px; position: relative; }
+  .steps li::before { content: ''; position: absolute; left: 4px; top: 10px; width: 6px; height: 6px; border-radius: 50%; background: var(--faint); }
+  .steps li.passed::before, .steps li.done::before { background: var(--pass); }
+  .steps li.failed::before { background: var(--fail); }
+  .steps li.failed { color: var(--text); }
+  .steps li.running::before { background: var(--run); }
+  .empty { padding: 26px 20px; color: var(--faint); font: 13px/1.6 var(--mono); }
+
+  .round { padding: 18px 20px 20px; border-bottom: 1px solid var(--line-soft); display: grid; grid-template-columns: 40px 1fr; gap: 14px; }
+  .round:last-child { border-bottom: 0; }
+  .rnum { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; font: 600 14px/1 var(--mono); border: 1px solid var(--line); color: var(--muted); }
+  .round.failed .rnum { background: var(--fail-soft); color: var(--fail); border-color: #ff7a6355; }
+  .round.passed .rnum { background: var(--pass); color: var(--pass-ink); border-color: transparent; }
+  .rtitle { font-weight: 600; letter-spacing: -0.01em; font-size: 16px; }
+  .rsub { font: 12px/1.5 var(--mono); color: var(--faint); margin-top: 2px; }
+  .bug { margin-top: 12px; border: 1px solid #ff7a6333; background: #ff7a630a; border-radius: 12px; padding: 14px; display: grid; grid-template-columns: 1fr 168px; gap: 14px; }
+  .bug.noshot { grid-template-columns: 1fr; }
+  .bug h3 { margin: 0 0 6px; font-size: 14.5px; font-weight: 600; color: #ffd7cf; }
+  .kv { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+  .kv b { color: var(--text); font-weight: 550; }
+  .bug .tag { font: 11px/1 var(--mono); color: var(--faint); }
+  .bug img { width: 168px; height: 105px; object-fit: cover; object-position: top left; border-radius: 8px; border: 1px solid var(--line); cursor: zoom-in; background: #000; }
+  .net { font: 12px/1.5 var(--mono); color: var(--fail); margin-top: 8px; word-break: break-all; }
+  .loopback { margin-top: 12px; font: 12px/1.5 var(--mono); color: var(--run); display: flex; gap: 8px; align-items: center; }
+  .loopback::before { content: '↩'; font-size: 15px; }
+  details.report { margin-top: 10px; }
+  details.report summary { cursor: pointer; font: 12px/1 var(--mono); color: var(--faint); }
+  details.report pre { white-space: pre-wrap; font: 12px/1.55 var(--mono); color: var(--muted); background: #0b0c09; border: 1px solid var(--line-soft); border-radius: 10px; padding: 12px; max-height: 340px; overflow: auto; }
+  .passrow { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .passrow a, .passrow span { font: 12px/1 var(--mono); padding: 6px 8px; border-radius: 6px; background: #c6f36b14; color: var(--pass); text-decoration: none; border: 1px solid #c6f36b33; }
+
+  .stamp { margin: 26px 0 0; padding: 22px; border-radius: 16px; border: 1px dashed #c6f36b55; display: none; }
+  .stamp.show { display: block; }
+  .stamp pre { margin: 0; white-space: pre-wrap; font: 12.5px/1.6 var(--mono); color: var(--muted); }
+  footer { margin-top: 34px; color: var(--faint); font: 12px/1.6 var(--mono); }
+
+  .lightbox { position: fixed; inset: 0; background: #000d; display: none; place-items: center; z-index: 9; cursor: zoom-out; padding: 24px; }
+  .lightbox.show { display: grid; }
+  .lightbox img { max-width: 100%; max-height: 100%; border-radius: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="mark"><svg width="18" height="18" viewBox="0 0 32 32"><path d="M6 16.5l6.5 6.5L26 9" stroke="#c6f36b" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="brand">Signoff <small id="project">loading…</small></div>
+    <div class="spacer"></div>
+    <span class="chip" id="lock">specs</span>
+    <span class="chip" id="app">app</span>
+  </header>
+
+  <section class="hero">
+    <div>
+      <div class="phase-label">Kane CLI verdict</div>
+      <h1 class="phase" id="phase"><span class="dot"></span><span id="phaseText">Waiting for the agent to finish</span></h1>
+    </div>
+    <div>
+      <div class="meter" id="meter"></div>
+      <div class="meter-cap" id="meterCap"></div>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Live run <span id="liveRound"></span></h2>
+      <div id="specs"><div class="empty">Nothing running. When the coding agent tries to finish, Kane opens the app in a real Chrome browser and runs every spec here.</div></div>
+    </section>
+    <section class="card">
+      <h2>Rounds <span id="roundsCap"></span></h2>
+      <div id="rounds"><div class="empty">No rounds yet.</div></div>
+    </section>
+  </div>
+
+  <section class="stamp" id="stamp"><pre id="receipt"></pre></section>
+  <footer>Updates every second. Specs live in <span id="specDir">signoff/</span>. The agent can read them but never change them.</footer>
+</div>
+<div class="lightbox" id="lightbox"><img alt="What Kane saw"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const ago = (iso) => { if (!iso) return ''; const s = Math.max(0, (Date.now() - new Date(iso)) / 1000); return s < 60 ? `${Math.round(s)}s ago` : s < 3600 ? `${Math.round(s / 60)}m ago` : new Date(iso).toLocaleString(); };
+let lastJson = '';
+
+function groupRounds(ledger) {
+  // The latest session that has rounds; show its rounds in order.
+  const rounds = ledger.filter((e) => e.kind === 'round');
+  if (!rounds.length) return [];
+  const session = rounds[rounds.length - 1].session;
+  const mine = rounds.filter((e) => e.session === session);
+  const starts = ledger.filter((e) => e.kind === 'round_start' && e.session === session);
+  return mine.map((r) => ({ ...r, startedAt: starts.find((s) => s.round === r.round)?.ts }));
+}
+
+function render(s) {
+  $('project').textContent = `${s.project} · ${s.config.specs.length} spec${s.config.specs.length === 1 ? '' : 's'} · up to ${s.config.maxRounds} rounds`;
+  $('app').innerHTML = `app <b>${esc(s.config.url.replace(/^https?:\/\//, ''))}</b>`;
+  const lk = $('lock');
+  if (!s.lock.locked) { lk.className = 'chip'; lk.textContent = 'specs not locked'; }
+  else if (s.lock.ok) { lk.className = 'chip ok'; lk.textContent = '● specs locked'; }
+  else { lk.className = 'chip bad'; lk.textContent = `specs changed: ${s.lock.changed.join(', ')}`; }
+
+  const live = s.live;
+  const rounds = groupRounds(s.ledger);
+  const last = rounds[rounds.length - 1];
+  const isRunning = live && !['signed off', 'sent back to the agent', 'gave up', 'tampered', 'app down', 'Kane could not start'].includes(live.phase) && (Date.now() - new Date(live.updated) < 30 * 60e3);
+
+  // Hero
+  const ph = $('phase');
+  let text = 'Waiting for the agent to finish', cls = '';
+  if (isRunning) { text = live.phase.replace(/^Kane is testing /, 'Kane is testing '); cls = 'running'; }
+  else if (live?.phase === 'signed off') { text = 'Signed off'; cls = 'pass'; }
+  else if (live?.phase === 'sent back to the agent') { text = 'Sent back to the agent'; cls = 'fail'; }
+  else if (live?.phase === 'gave up') { text = 'Not signed off'; cls = 'fail'; }
+  else if (live?.phase === 'tampered') { text = 'Specs were changed, refused'; cls = 'fail'; }
+  else if (live?.phase) { text = live.phase; }
+  ph.className = 'phase ' + cls;
+  $('phaseText').textContent = text;
+
+  // Round meter
+  const max = s.config.maxRounds;
+  const pips = [];
+  for (let i = 1; i <= max; i++) {
+    const r = rounds.find((x) => x.round === i);
+    const c = r ? (r.status === 'passed' ? 'passed' : 'failed') : (isRunning && live.round === i ? 'current' : '');
+    pips.push(`<div class="pip ${c}">${i}</div>`);
+  }
+  $('meter').innerHTML = pips.join('');
+  $('meterCap').textContent = live ? `round ${live.round} of ${max} · updated ${ago(live.updated)}` : `rounds 1–${max}`;
+
+  // Live specs
+  if (live?.specs?.length) {
+    $('liveRound').textContent = `round ${live.round}`;
+    $('specs').innerHTML = live.specs.map((sp) => `
+      <div class="spec">
+        <div class="spec-head"><span class="badge ${esc(sp.status)}">${esc(sp.status)}</span><span>${esc(sp.spec)}</span>
+          <span class="spec-meta">${sp.duration ? Math.round(sp.duration) + 's' : ''}</span></div>
+        ${sp.steps?.length ? `<ul class="steps">${sp.steps.slice(-14).map((st) => `<li class="${esc(st.status)}">${esc(st.text)}</li>`).join('')}</ul>` : ''}
+      </div>`).join('');
+  }
+
+  // Rounds
+  $('roundsCap').textContent = rounds.length ? `${rounds.length} so far` : '';
+  if (rounds.length) {
+    $('rounds').innerHTML = rounds.map((r) => {
+      const res = r.results ?? [];
+      const passed = res.filter((x) => x.status === 'passed').length;
+      const title = r.status === 'passed' ? `Kane signed off: ${passed}/${res.length} specs passed`
+        : r.status === 'failed' ? `Kane failed ${res.length - passed} of ${res.length} spec${res.length === 1 ? '' : 's'}`
+        : r.status === 'tampered' ? 'Refused: the agent changed the locked specs'
+        : r.status === 'unchanged' ? 'Refused: the agent stopped without changing anything'
+        : r.status === 'app_down' ? 'The app would not start'
+        : r.status === 'kane_error' ? 'Kane could not start (not counted)' : r.status;
+      const bugs = (r.bugs ?? []).map((b) => `
+        <div class="bug ${b.shots?.length ? '' : 'noshot'}">
+          <div>
+            <div class="tag">${esc(b.spec)}${b.severity ? ' · ' + esc(b.severity) : ''}</div>
+            <h3>${esc(b.title ?? b.error ?? 'Spec failed')}</h3>
+            ${b.error ? `<p class="kv"><b>Kane saw:</b> ${esc(b.error)}</p>` : ''}
+            ${b.rootCause ? `<p class="kv"><b>Root cause:</b> ${esc(b.rootCause)}</p>` : ''}
+            ${(b.network ?? []).map((n) => `<div class="net">${esc(n.method)} ${esc(n.url)} → ${esc(n.status)}</div>`).join('')}
+            ${(b.console ?? []).slice(0, 2).map((c) => `<div class="net">console.${esc(c.level)}: ${esc(c.msg)}</div>`).join('')}
+          </div>
+          ${b.shots?.length ? `<img src="/rounds/${b.shots.map(encodeURI)[0]}" alt="What Kane saw" data-full="/rounds/${encodeURI(b.shots[0])}">` : ''}
+        </div>`).join('');
+      const links = res.filter((x) => x.status === 'passed').map((x) => x.shareUrl ? `<a href="${esc(x.shareUrl)}" target="_blank" rel="noopener">✓ ${esc(x.spec.split('/').pop())}</a>` : `<span>✓ ${esc(x.spec.split('/').pop())}</span>`).join('');
+      return `
+        <div class="round ${r.status === 'passed' ? 'passed' : 'failed'}">
+          <div class="rnum">${r.round}</div>
+          <div>
+            <div class="rtitle">${esc(title)}</div>
+            <div class="rsub">${ago(r.ts)}${r.credits ? ` · ${Math.round(r.credits)} credits` : ''}${r.head ? ` · ${esc(r.head)}` : ''} · code ${esc(r.fp ?? '')}</div>
+            ${bugs}
+            ${links ? `<div class="passrow">${links}</div>` : ''}
+            ${r.report ? `<div class="loopback">Sent to the coding agent as its next instruction</div><details class="report"><summary>show exactly what the agent read</summary><pre>${esc(r.report)}</pre></details>` : ''}
+          </div>
+        </div>`;
+    }).reverse().join('');
+  }
+
+  // Receipt
+  const signed = last?.status === 'passed' && s.receipt;
+  $('stamp').className = 'stamp' + (signed ? ' show' : '');
+  if (signed) $('receipt').textContent = s.receipt;
+  if (s.config.specs[0]) $('specDir').textContent = s.config.specs[0].split('/').slice(0, -1).join('/') + '/';
+}
+
+async function tick() {
+  try {
+    const r = await fetch('/api/state', { cache: 'no-store' });
+    const t = await r.text();
+    if (t !== lastJson) { lastJson = t; render(JSON.parse(t)); }
+  } catch {}
+}
+document.addEventListener('click', (e) => {
+  const img = e.target.closest('img[data-full]');
+  const lb = $('lightbox');
+  if (img) { lb.querySelector('img').src = img.dataset.full; lb.classList.add('show'); }
+  else if (e.target.closest('#lightbox')) lb.classList.remove('show');
+});
+tick(); setInterval(tick, 1000);
+</script>
+</body>
+</html>

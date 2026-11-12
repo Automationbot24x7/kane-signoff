@@ -1,0 +1,5 @@
+{
+  "name": "kane-signoff-vendored",
+  "type": "module",
+  "private": true
+}

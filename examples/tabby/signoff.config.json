@@ -1,0 +1,8 @@
+{
+  "url": "http://localhost:4310",
+  "start": "node server.js",
+  "restart": true,
+  "specs": "signoff",
+  "maxRounds": 4,
+  "headless": true
+}

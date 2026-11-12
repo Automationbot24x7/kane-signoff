@@ -1,0 +1,6 @@
+# Signoff run artifacts
+.signoff/state/
+.signoff/live.json
+.signoff/server.log
+.signoff/rounds/
+.testmuai/evidence/

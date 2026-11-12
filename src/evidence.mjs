@@ -16,6 +16,7 @@ function ndjson(text) {
 function consoleProblems(text, step) {
   return ndjson(text)
     .filter((e) => e.text && /error|warn|assert/i.test(e.level ?? '') && (!step || !e.step || e.step === step))
+    .filter((e) => !/favicon\.ico/i.test(e.url ?? '') && !/favicon\.ico/i.test(e.text))
     .map((e) => ({ level: e.level, msg: clip(e.text, 220), url: e.url ?? null, step: e.step ?? null }));
 }
 

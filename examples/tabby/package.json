@@ -1,0 +1,6 @@
+{
+  "name": "tabby",
+  "private": true,
+  "description": "A tiny bill splitter, built by a coding agent and signed off by Kane CLI.",
+  "scripts": { "start": "node server.js" }
+}

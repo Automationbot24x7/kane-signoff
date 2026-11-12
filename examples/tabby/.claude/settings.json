@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.signoff/tool/bin/kane-signoff.mjs\" gate",
+            "timeout": 1800,
+            "statusMessage": "Kane is testing the app in a real browser…"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.signoff/tool/bin/kane-signoff.mjs\" guard",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

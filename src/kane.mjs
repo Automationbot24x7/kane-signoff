@@ -8,6 +8,15 @@ const isWin = process.platform === 'win32';
 /** Resolve the kane-cli executable (global npm install puts a .cmd shim on Windows). */
 export function kaneBin() {
   if (process.env.KANE_CLI_BIN) return process.env.KANE_CLI_BIN;
+  // Hooks can run with a thinner PATH than your terminal: look where npm puts global shims.
+  const onPath = (process.env.PATH ?? '').split(isWin ? ';' : ':').some((d) => d && existsSync(join(d, isWin ? 'kane-cli.cmd' : 'kane-cli')));
+  if (!onPath) {
+    const candidates = isWin
+      ? [join(process.env.APPDATA ?? '', 'npm', 'kane-cli.cmd')]
+      : ['/opt/homebrew/bin/kane-cli', '/usr/local/bin/kane-cli', join(process.env.HOME ?? '', '.npm-global', 'bin', 'kane-cli')];
+    const found = candidates.find((c) => existsSync(c));
+    if (found) return found;
+  }
   return 'kane-cli';
 }
 
