@@ -1,0 +1,12 @@
+{
+  "name": "kane-signoff",
+  "version": "0.1.0",
+  "description": "Your coding agent isn't done until Kane signs off. A Stop hook that runs your Kane CLI specs in a real browser and feeds failures back to the agent until they pass.",
+  "type": "module",
+  "bin": { "kane-signoff": "bin/kane-signoff.mjs" },
+  "files": ["bin", "src", "viewer", "templates"],
+  "engines": { "node": ">=18" },
+  "scripts": { "test": "node --test test/" },
+  "keywords": ["kane-cli", "testing", "e2e", "coding-agent", "hooks", "verification"],
+  "license": "MIT"
+}

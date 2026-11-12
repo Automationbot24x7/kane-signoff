@@ -1,0 +1,8 @@
+node_modules/
+Credentials/
+.testmuai/evidence/
+.signoff/live.json
+.signoff/server.log
+.signoff/state/
+*.log
+.DS_Store
