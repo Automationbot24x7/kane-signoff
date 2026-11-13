@@ -92,7 +92,7 @@ export function receipt({ root, status, rounds, results, fp, head, startedAt, cr
   if (head) L.push(`| Commit | \`${head}\` + working tree \`${fp}\` |`); else L.push(`| Code fingerprint | \`${fp}\` |`);
   L.push(`| Rounds | ${rounds} |`);
   L.push(`| Kane credits | ${Math.round(credits * 10) / 10} |`);
-  if (guard) L.push(`| Refused on the way | ${guard} |`);
+  if (guard) L.push(`| Agent attempts the guard refused | ${guard} |`);
   L.push('');
   L.push(`| Spec | Result | Time | Test Manager |`, `|---|---|---|---|`);
   for (const r of results) L.push(`| \`${r.spec}\` | ${r.status === 'passed' ? 'PASS' : 'FAIL'} | ${Math.round(r.duration)}s | ${r.shareUrl ? `[open](${r.shareUrl})` : '-'} |`);

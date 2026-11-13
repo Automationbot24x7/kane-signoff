@@ -70,7 +70,7 @@ function guardSummary(root, session) {
   const counts = {};
   for (const e of readLedger(root)) if (e.kind === 'guard' && e.session === session) counts[e.rule] = (counts[e.rule] ?? 0) + 1;
   const parts = Object.entries(counts).map(([rule, n]) => `${n} × ${labels[rule] ?? rule}`);
-  return parts.length ? `the agent tried to ${parts.join(', ')}` : null;
+  return parts.length ? parts.join(', ') : null;
 }
 
 /**
