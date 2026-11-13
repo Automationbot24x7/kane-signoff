@@ -23,6 +23,17 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.signoff/tool/bin/kane-signoff.mjs\" mark",
+            "timeout": 20
+          }
+        ]
+      }
     ]
   }
 }

@@ -82,6 +82,15 @@
   .rnum { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; font: 600 14px/1 var(--mono); border: 1px solid var(--line); color: var(--muted); }
   .round.failed .rnum { background: var(--fail-soft); color: var(--fail); border-color: #ff7a6355; }
   .round.passed .rnum { background: var(--pass); color: var(--pass-ink); border-color: transparent; }
+  .round.note .rnum { color: var(--warn); border-color: #f5c56b55; background: #f5c56b12; }
+  .round.note .rtitle { font-weight: 500; font-size: 14.5px; color: var(--muted); }
+  .refused { padding: 16px 20px 18px; border-top: 1px solid var(--line-soft); }
+  .rf-title { font: 600 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--warn); }
+  .refused ul { list-style: none; margin: 10px 0 0; padding: 0; }
+  .refused li { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 10px; padding: 4px 0; font: 12.5px/1.45 var(--mono); }
+  .rf-rule { color: var(--warn); }
+  .rf-what { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rf-more { margin-top: 6px; font: 12px/1 var(--mono); color: var(--faint); }
   .rtitle { font-weight: 600; letter-spacing: -0.01em; font-size: 16px; }
   .rsub { font: 12px/1.5 var(--mono); color: var(--faint); margin-top: 2px; }
   .bug { margin-top: 12px; border: 1px solid #ff7a6333; background: #ff7a630a; border-radius: 12px; padding: 14px; display: grid; grid-template-columns: 1fr 168px; gap: 14px; }
@@ -185,14 +194,24 @@ function md(src) {
   return out.join('');
 }
 
-function groupRounds(ledger) {
-  // The latest session that has rounds; show its rounds in order.
-  const rounds = ledger.filter((e) => e.kind === 'round');
-  if (!rounds.length) return [];
-  const session = rounds[rounds.length - 1].session;
-  const mine = rounds.filter((e) => e.session === session);
-  const starts = ledger.filter((e) => e.kind === 'round_start' && e.session === session);
-  return mine.map((r) => ({ ...r, startedAt: starts.find((s) => s.round === r.round)?.ts }));
+// Rounds that count against the cap. Everything else is a note (the port was busy, Kane could not start…).
+const COUNTED = new Set(['passed', 'failed', 'tampered', 'unchanged', 'app_down']);
+const RULES = { hidden: 'hidden spec', locked: 'locked file', admin: 'human-only command', kill: 'kill by name', search: 'whole-project search' };
+
+function latestTurn(ledger) {
+  // The latest session, from its latest request: its rounds in order, and what the guard refused.
+  const marks = ledger.filter((e) => ['round', 'round_start', 'guard', 'prompt'].includes(e.kind));
+  if (!marks.length) return { rounds: [], refused: [] };
+  const session = marks[marks.length - 1].session;
+  let mine = ledger.filter((e) => e.session === session);
+  const lastPrompt = mine.map((e) => e.kind).lastIndexOf('prompt');
+  const lastFirst = mine.map((e) => e.kind === 'round_start' && e.round === 1).lastIndexOf(true);
+  mine = mine.slice(Math.max(0, lastPrompt >= 0 ? lastPrompt : lastFirst));
+  const starts = mine.filter((e) => e.kind === 'round_start');
+  return {
+    rounds: mine.filter((e) => e.kind === 'round').map((r) => ({ ...r, startedAt: starts.find((s) => s.round === r.round)?.ts })),
+    refused: mine.filter((e) => e.kind === 'guard'),
+  };
 }
 
 function render(s) {
@@ -204,9 +223,9 @@ function render(s) {
   else { lk.className = 'chip bad'; lk.textContent = `specs changed: ${s.lock.changed.join(', ')}`; }
 
   const live = s.live;
-  const rounds = groupRounds(s.ledger);
-  const last = rounds[rounds.length - 1];
-  const isRunning = live && !['signed off', 'sent back to the agent', 'gave up', 'tampered', 'app down', 'Kane could not start'].includes(live.phase) && (Date.now() - new Date(live.updated) < 30 * 60e3);
+  const { rounds, refused } = latestTurn(s.ledger);
+  const last = [...rounds].reverse().find((r) => COUNTED.has(r.status));
+  const isRunning = live && !['signed off', 'sent back to the agent', 'gave up', 'tampered', 'app down', 'Kane could not start', 'out of time', 'port busy'].includes(live.phase) && (Date.now() - new Date(live.updated) < 30 * 60e3);
 
   // Hero
   const ph = $('phase');
@@ -224,7 +243,7 @@ function render(s) {
   const max = s.config.maxRounds;
   const pips = [];
   for (let i = 1; i <= max; i++) {
-    const r = rounds.find((x) => x.round === i);
+    const r = [...rounds].reverse().find((x) => x.round === i && COUNTED.has(x.status));
     const c = r ? (r.status === 'passed' ? 'passed' : 'failed') : (isRunning && live.round === i ? 'current' : '');
     pips.push(`<div class="pip ${c}">${i}</div>`);
   }
@@ -243,16 +262,27 @@ function render(s) {
   }
 
   // Rounds
-  $('roundsCap').textContent = rounds.length ? `${rounds.length} so far` : '';
-  if (rounds.length) {
+  const counted = rounds.filter((r) => COUNTED.has(r.status)).length;
+  $('roundsCap').textContent = counted ? `${counted} so far` : '';
+  const refusedHtml = refused.length ? `
+    <div class="refused">
+      <div class="rf-title">Refused by the guard · ${refused.length}</div>
+      <ul>${refused.slice(-8).map((g) => `<li><span class="rf-rule">${esc(RULES[g.rule] ?? g.rule)}</span><span class="rf-what">${esc(g.tool)} ${esc(g.what)}</span></li>`).join('')}</ul>
+      ${refused.length > 8 ? `<div class="rf-more">and ${refused.length - 8} earlier</div>` : ''}
+    </div>` : '';
+  if (rounds.length || refused.length) {
     $('rounds').innerHTML = rounds.map((r) => {
       const res = r.results ?? [];
       const passed = res.filter((x) => x.status === 'passed').length;
       const title = r.status === 'passed' ? `Kane signed off: ${passed}/${res.length} specs passed`
         : r.status === 'failed' ? `Kane failed ${res.length - passed} of ${res.length} spec${res.length === 1 ? '' : 's'}`
-        : r.status === 'tampered' ? 'Refused: the agent changed the locked specs'
+        : r.status === 'tampered' ? 'Refused: the locked specs were changed'
         : r.status === 'unchanged' ? 'Refused: the agent stopped without changing anything'
         : r.status === 'app_down' ? 'The app would not start'
+        : r.status === 'restored' ? `Locked files were changed. Signoff put the signed versions back${r.files?.length ? ': ' + r.files.join(', ') : ''}`
+        : r.status === 'unlocked_specs' ? 'The specs differ from the signed ones (changed before this request): nothing verified'
+        : r.status === 'out_of_time' ? 'Out of time before every spec ran: not signed off'
+        : r.status === 'port_busy' ? 'Something else was using the app\'s port'
         : r.status === 'kane_error' ? 'Kane could not start (not counted)' : r.status;
       const bugs = (r.bugs ?? []).map((b) => `
         <div class="bug ${b.shots?.length ? '' : 'noshot'}">
@@ -267,18 +297,19 @@ function render(s) {
           ${b.shots?.length ? `<img src="/rounds/${b.shots.map(encodeURI)[0]}" alt="What Kane saw" data-full="/rounds/${encodeURI(b.shots[0])}">` : ''}
         </div>`).join('');
       const links = res.filter((x) => x.status === 'passed').map((x) => x.shareUrl ? `<a href="${esc(x.shareUrl)}" target="_blank" rel="noopener">✓ ${esc(x.spec.split('/').pop())}</a>` : `<span>✓ ${esc(x.spec.split('/').pop())}</span>`).join('');
+      const isNote = !COUNTED.has(r.status);
       return `
-        <div class="round ${r.status === 'passed' ? 'passed' : 'failed'}">
-          <div class="rnum">${r.round}</div>
+        <div class="round ${r.status === 'passed' ? 'passed' : isNote ? 'note' : 'failed'}">
+          <div class="rnum">${isNote ? '!' : r.round}</div>
           <div>
             <div class="rtitle">${esc(title)}</div>
-            <div class="rsub">${ago(r.ts)}${r.credits ? ` · ${Math.round(r.credits)} credits` : ''}${r.head ? ` · ${esc(r.head)}` : ''} · code ${esc(r.fp ?? '')}</div>
+            <div class="rsub">${ago(r.ts)}${r.credits ? ` · ${Math.round(r.credits)} credits` : ''}${r.head ? ` · ${esc(r.head)}` : ''}${r.fp ? ` · code ${esc(r.fp)}` : ''}</div>
             ${bugs}
             ${links ? `<div class="passrow">${links}</div>` : ''}
             ${r.report ? `<div class="loopback">Sent to the coding agent as its next instruction</div><details class="report"><summary>show exactly what the agent read</summary><pre>${esc(r.report)}</pre></details>` : ''}
           </div>
         </div>`;
-    }).reverse().join('');
+    }).reverse().join('') + refusedHtml;
   }
 
   // Receipt
