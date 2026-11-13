@@ -38,6 +38,11 @@ function mergeHooks(root) {
     ...strip(settings.hooks.PreToolUse),
     { matcher: 'Edit|Write|MultiEdit|NotebookEdit|Read|Grep|Glob|Bash|PowerShell', hooks: [{ type: 'command', command: `node ${HOOK_BIN} guard`, timeout: 15 }] },
   ];
+  // Notes what the code looked like when the human asked, so a turn that changes nothing is never held up.
+  settings.hooks.UserPromptSubmit = [
+    ...strip(settings.hooks.UserPromptSubmit),
+    { hooks: [{ type: 'command', command: `node ${HOOK_BIN} mark`, timeout: 20 }] },
+  ];
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(p, JSON.stringify(settings, null, 2) + '\n');
   return p;
@@ -86,7 +91,7 @@ export function init(root, { url, start, force } = {}) {
   writeFileSync(join(tool, 'package.json'), JSON.stringify({ name: 'kane-signoff-vendored', type: 'module', private: true }, null, 2) + '\n');
   done.push('vendored the gate into .signoff/tool/ (no dependencies)');
 
-  done.push(`added the Stop and PreToolUse hooks to ${mergeHooks(root).replace(root, '.')}`);
+  done.push(`added the Stop, PreToolUse and UserPromptSubmit hooks to ${mergeHooks(root).replace(root, '.')}`);
 
   // A short way to run the vendored tool: `npm run signoff <command>`.
   const pkgPath = join(root, 'package.json');
@@ -105,7 +110,7 @@ export function init(root, { url, start, force } = {}) {
   }
 
   const gi = join(root, '.gitignore');
-  const lines = ['.signoff/state/', '.signoff/live.json', '.signoff/server.log', '.signoff/rounds/', '.testmuai/evidence/'];
+  const lines = ['.signoff/state/', '.signoff/live.json', '.signoff/server.log', '.signoff/rounds/', '.testmuai/evidence/', `${cfg.specs ?? DEFAULTS.specs}/output-*/`];
   const have = existsSync(gi) ? readFileSync(gi, 'utf8') : '';
   const missing = lines.filter((l) => !have.split(/\r?\n/).includes(l));
   if (missing.length) { appendFileSync(gi, (have && !have.endsWith('\n') ? '\n' : '') + '# Signoff run artifacts\n' + missing.join('\n') + '\n'); done.push('updated .gitignore'); }

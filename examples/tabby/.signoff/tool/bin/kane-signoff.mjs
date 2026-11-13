@@ -2,12 +2,13 @@
 // Signoff: your coding agent is not done until Kane CLI signs off.
 import { existsSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { gate, readStdinJson } from '../src/gate.mjs';
+import { gate, markPrompt, readStdinJson } from '../src/gate.mjs';
 import { guard } from '../src/guard.mjs';
 import { init } from '../src/init.mjs';
-import { findRoot, loadConfig, listSpecs } from '../src/config.mjs';
+import { findRoot, hookRoot, loadConfig, listSpecs } from '../src/config.mjs';
 import { writeLock, checkLock } from '../src/lock.mjs';
-import { readJson } from '../src/ledger.mjs';
+import { appendLedger, readJson } from '../src/ledger.mjs';
+import { doctor } from '../src/doctor.mjs';
 import { serveViewer } from '../src/view.mjs';
 import { stopServer } from '../src/server.mjs';
 
@@ -23,9 +24,10 @@ const HELP = `kane-signoff: your coding agent is not done until Kane CLI signs o
   check                                  run the specs now, like the hook does (exit 0 pass, 1 fail)
   view [--port 4747]                     open the live round-by-round timeline
   status                                 show config, specs, lock and last result
+  doctor                                 check that everything Signoff needs is in place
   off | on                               pause or resume the gate for this project
 
-  gate | guard                           (used by the agent's hooks; read JSON on stdin)
+  gate | guard | mark                    (used by the agent's hooks; read JSON on stdin)
 `;
 
 switch (cmd) {
@@ -42,15 +44,29 @@ switch (cmd) {
     process.exit(0);
   }
   case 'guard': {
+    // Claude Code PreToolUse hook. A refusal is also written to the ledger, so the human sees what was tried.
     const input = await readStdinJson();
-    try { const r = guard(input); if (r) process.stdout.write(JSON.stringify(r)); } catch { /* never block on our own bug */ }
+    try {
+      const r = guard(input);
+      if (r) {
+        const { _log, ...out } = r;
+        process.stdout.write(JSON.stringify(out));
+        try { const root = hookRoot(input); if (root && _log) appendLedger(root, { kind: 'guard', session: input.session_id || 'cli', ..._log }); } catch { /* the refusal matters more than the note */ }
+      }
+    } catch { /* never block on our own bug */ }
+    process.exit(0);
+  }
+  case 'mark': {
+    // Claude Code UserPromptSubmit hook. Prints nothing: anything on stdout would be added to the prompt.
+    const input = await readStdinJson();
+    try { markPrompt(input); } catch { /* never get in the way of a prompt */ }
     process.exit(0);
   }
   case 'init': {
     const root = process.cwd();
     for (const line of init(root, { url: flag('url'), start: flag('start'), force: !!flag('force') })) say(`  ✓ ${line}`);
     const run = existsSync(join(root, 'package.json')) ? 'npm run signoff' : 'node .signoff/tool/bin/kane-signoff.mjs';
-    say(`\nNext:\n  1. Describe what "done" means in signoff/*_test.md (plain English, one ## heading per step).\n  2. Sign the specs:       ${run} lock\n  3. Ask your agent for a change. It cannot finish until Kane passes the specs.\n  Watch the rounds live:   ${run} view`);
+    say(`\nNext:\n  1. Describe what "done" means in signoff/*_test.md (plain English, one ## heading per step).\n  2. Sign the specs:       ${run} lock\n  3. Ask your agent for a change. It cannot finish until Kane passes the specs.\n  Check the setup:         ${run} doctor\n  Watch the rounds live:   ${run} view`);
     break;
   }
   case 'lock': {
@@ -84,6 +100,14 @@ switch (cmd) {
     say(`gate:   ${existsSync(join(root, '.signoff/off')) ? 'OFF' : 'on'}, max ${cfg.maxRounds} rounds`);
     if (st.lastPass) say(`last signed off: ${st.lastPass.when} (${st.lastPass.passed}/${st.lastPass.total} specs)`);
     break;
+  }
+  case 'doctor': {
+    const root = need();
+    const checks = await doctor(root);
+    for (const c of checks) say(`  ${c.ok ? '✓' : c.warn ? '!' : '✗'} ${c.label}${c.detail ? `: ${c.detail}` : ''}${!c.ok && c.fix ? `\n      → ${c.fix}` : ''}`);
+    const bad = checks.filter((c) => !c.ok && !c.warn).length;
+    say(bad ? `\n${bad} thing${bad === 1 ? '' : 's'} to fix before Kane can sign anything off.` : '\nReady: ask your agent for a change.');
+    process.exit(bad ? 1 : 0);
   }
   case 'off': { const root = need(); mkdirSync(join(root, '.signoff'), { recursive: true }); writeFileSync(join(root, '.signoff/off'), ''); stopServer(root); say('Signoff paused for this project.'); break; }
   case 'on': { const root = need(); rmSync(join(root, '.signoff/off'), { force: true }); say('Signoff is on.'); break; }

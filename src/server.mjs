@@ -7,14 +7,29 @@ import { killTree } from './kane.mjs';
 const isWin = process.platform === 'win32';
 const PID_FILE = '.signoff/state/server.pid';
 
-export async function isUp(url, timeoutMs = 2500) {
+async function answers(url, timeoutMs) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), timeoutMs);
   try {
-    const ctl = new AbortController();
-    const t = setTimeout(() => ctl.abort(), timeoutMs);
     const r = await fetch(url, { signal: ctl.signal, redirect: 'manual' });
-    clearTimeout(t);
     return r.status > 0 && r.status < 500;
-  } catch { return false; }
+  } catch { return false; } finally { clearTimeout(t); }
+}
+
+/**
+ * Is something answering at this URL? "localhost" can mean IPv4 or IPv6, and older Node
+ * versions try only one of them, so check both before deciding nothing is there.
+ */
+export async function isUp(url, timeoutMs = 2500) {
+  if (await answers(url, timeoutMs)) return true;
+  let u;
+  try { u = new URL(url); } catch { return false; }
+  if (u.hostname !== 'localhost') return false;
+  for (const host of ['127.0.0.1', '[::1]']) {
+    u.hostname = host;
+    if (await answers(u.href, Math.min(timeoutMs, 1500))) return true;
+  }
+  return false;
 }
 
 /** PID of the process listening on a TCP port, or null. */

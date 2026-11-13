@@ -33,9 +33,11 @@ function quote(arg) {
 export function runKane(args, { cwd, onEvent, timeoutMs = 15 * 60_000, env } = {}) {
   return new Promise((resolve) => {
     // Windows: the npm shim is a .cmd file, which needs a shell; pass one pre-quoted string.
+    // Elsewhere: give Kane its own process group, so a timeout can stop Kane and its browser together.
     const child = spawn(isWin ? [kaneBin(), ...args].map(quote).join(' ') : kaneBin(), isWin ? [] : args, {
       cwd,
       shell: isWin,
+      detached: !isWin,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, ...env },
       windowsHide: true,
@@ -43,6 +45,17 @@ export function runKane(args, { cwd, onEvent, timeoutMs = 15 * 60_000, env } = {
     const events = [];
     let buf = '';
     let stderr = '';
+    let timedOut = false;
+    // If this process is told to stop (Ctrl+C on `check`, or the hook's own timeout), take Kane down too.
+    const onSignal = () => { killTree(child.pid); };
+    process.once('SIGINT', onSignal);
+    process.once('SIGTERM', onSignal);
+    const done = (result) => {
+      clearTimeout(timer);
+      process.removeListener('SIGINT', onSignal);
+      process.removeListener('SIGTERM', onSignal);
+      resolve(result);
+    };
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk) => {
       buf += chunk;
@@ -60,13 +73,13 @@ export function runKane(args, { cwd, onEvent, timeoutMs = 15 * 60_000, env } = {
     });
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', (c) => { stderr += c; if (stderr.length > 200_000) stderr = stderr.slice(-100_000); });
-    const timer = setTimeout(() => { killTree(child.pid); }, timeoutMs);
+    const timer = setTimeout(() => { timedOut = true; killTree(child.pid); }, timeoutMs);
     child.on('close', (code) => {
-      clearTimeout(timer);
       if (buf.trim().startsWith('{')) { try { const e = JSON.parse(buf.trim()); events.push(e); onEvent?.(e); } catch {} }
-      resolve({ code: code ?? 3, events, stderr });
+      // A killed process reports whatever the kill left behind (1 on Windows, null elsewhere): say "timeout" ourselves.
+      done({ code: timedOut ? 3 : code ?? 3, events, stderr, timedOut });
     });
-    child.on('error', (err) => { clearTimeout(timer); resolve({ code: 2, events, stderr: String(err) }); });
+    child.on('error', (err) => done({ code: 2, events, stderr: String(err), timedOut: false }));
   });
 }
 
@@ -86,10 +99,16 @@ export async function runSpec(specPath, { cwd, url, headless, cdpEndpoint, onEve
   if (cdpEndpoint) args.push('--cdp-endpoint', cdpEndpoint);
   else if (headless) args.push('--headless');
   const started = Date.now();
-  const { code, events, stderr } = await runKane(args, { cwd, onEvent, timeoutMs });
+  const ran = await runKane(args, { cwd, onEvent, timeoutMs });
+  const { events, stderr } = ran;
+  let { code } = ran;
   const done = [...events].reverse().find((e) => e.type === 'test_md_done');
   const runEnds = events.filter((e) => e.type === 'run_end');
   const credits = runEnds.reduce((s, e) => s + (Number(e.credits_consumed ?? e.credits) || 0), 0);
+  // A verdict needs Kane to have actually run. No events at all means it never started
+  // (not installed, a broken shim, a shell error that happens to exit 0 or 1): that is
+  // infrastructure, not a pass and not a bug in the app.
+  if (!events.length && !ran.timedOut && (code === 0 || code === 1)) code = 2;
   const status = code === 0 ? 'passed' : code === 1 ? 'failed' : code === 3 ? 'timeout' : 'error';
   return {
     spec: specPath,

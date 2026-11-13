@@ -22,15 +22,15 @@ export function failingSteps(events) {
   return out.filter((x) => { const k = x.text; if (seen.has(k)) return false; seen.add(k); return true; }).slice(-4);
 }
 
-export function agentReport(root, { round, maxRounds, results, evidence, lockProblem, serverProblem, blind }) {
+export function agentReport(root, { round, maxRounds, results, evidence, lockProblem, serverProblem, blind, notRun = [] }) {
   const L = [];
   if (lockProblem) {
-    L.push(`Signoff refused: the locked Kane specs were changed.`);
+    L.push(lockProblem.deletedLock ? 'Signoff refused: the spec lock (.signoff/spec-lock.json) was deleted.' : 'Signoff refused: the locked Kane specs were changed.');
     for (const f of lockProblem.changed) L.push(`  changed: ${f}`);
     for (const f of lockProblem.added) L.push(`  added:   ${f}`);
     for (const f of lockProblem.removed) L.push(`  removed: ${f}`);
     L.push('');
-    L.push('The specs are the definition of done and only a human may change them. Restore them exactly (for example `git checkout -- <file>`), then make the APP pass them. Kane will re-check when you stop.');
+    L.push('The specs are the definition of done and only a human may change them. Put these files back exactly as they were (`git checkout -- <file>` restores a committed file; delete a file you added), then make the APP pass the specs. Kane will re-check when you stop. If you did not change them, stop and tell the human: they need to run the `lock` command again.');
     return L.join('\n');
   }
   if (serverProblem) {
@@ -70,6 +70,7 @@ export function agentReport(root, { round, maxRounds, results, evidence, lockPro
     if (r.status === 'timeout') L.push('  The spec timed out. The page may hang or never reach the expected state.');
     if (r.status === 'error' && r.stderrTail) L.push('  Kane output:', ...r.stderrTail.split('\n').slice(-6).map((x) => '    ' + x));
   }
+  for (const spec of notRun) L.push('', `NOT RUN  ${spec}  (the gate ran out of time before reaching it)`);
   L.push('');
   L.push(blind
     ? 'Fix the application so it does what these steps describe. The specs themselves are hidden from you on purpose (like a hold-out test set): work from the brief and the findings above. When you have fixed it, finish again and Kane will re-run every spec.'
@@ -77,7 +78,7 @@ export function agentReport(root, { round, maxRounds, results, evidence, lockPro
   return L.join('\n');
 }
 
-export function receipt({ root, status, rounds, results, fp, head, startedAt, credits, gaveUp }) {
+export function receipt({ root, status, rounds, results, fp, head, startedAt, credits, gaveUp, guard }) {
   const when = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
   const L = [];
   L.push(`# Signoff receipt`);
@@ -91,6 +92,7 @@ export function receipt({ root, status, rounds, results, fp, head, startedAt, cr
   if (head) L.push(`| Commit | \`${head}\` + working tree \`${fp}\` |`); else L.push(`| Code fingerprint | \`${fp}\` |`);
   L.push(`| Rounds | ${rounds} |`);
   L.push(`| Kane credits | ${Math.round(credits * 10) / 10} |`);
+  if (guard) L.push(`| Refused on the way | ${guard} |`);
   L.push('');
   L.push(`| Spec | Result | Time | Test Manager |`, `|---|---|---|---|`);
   for (const r of results) L.push(`| \`${r.spec}\` | ${r.status === 'passed' ? 'PASS' : 'FAIL'} | ${Math.round(r.duration)}s | ${r.shareUrl ? `[open](${r.shareUrl})` : '-'} |`);

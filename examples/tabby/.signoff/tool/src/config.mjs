@@ -20,7 +20,7 @@ export const DEFAULTS = {
 };
 
 export function findRoot(start = process.cwd()) {
-  let dir = start;
+  let dir = start || process.cwd();
   for (let i = 0; i < 40; i++) {
     if (existsSync(join(dir, CONFIG_FILE))) return dir;
     const up = join(dir, '..');
@@ -28,6 +28,17 @@ export function findRoot(start = process.cwd()) {
     dir = up;
   }
   return null;
+}
+
+/**
+ * The project root for a hook call. Claude Code tells hooks which project they belong to;
+ * trust that over the working directory, because the agent's shell may have `cd`-ed
+ * somewhere else (and a gate that cannot find its project would wave the agent through).
+ */
+export function hookRoot(input = {}) {
+  const dir = process.env.CLAUDE_PROJECT_DIR;
+  if (dir && existsSync(join(dir, CONFIG_FILE))) return dir;
+  return findRoot(input.cwd || process.cwd());
 }
 
 export function loadConfig(root) {
