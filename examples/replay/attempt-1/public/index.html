@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tabby</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="card">
+    <header>
+      <h1>Tabby</h1>
+      <p class="lede">Split the bill. Fairly, to the cent.</p>
+    </header>
+
+    <form id="form" class="inputs" novalidate autocomplete="off" onsubmit="return false">
+      <label class="field" for="bill">
+        <span class="label">Bill amount</span>
+        <span class="money">
+          <span class="prefix" aria-hidden="true">$</span>
+          <input id="bill" name="bill" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" aria-describedby="bill-msg">
+        </span>
+        <span id="bill-msg" class="msg" role="alert"></span>
+      </label>
+
+      <fieldset class="field">
+        <legend class="label">Tip</legend>
+        <div class="tips">
+          <label class="tip"><input type="radio" name="tip" value="10"><span>10%</span></label>
+          <label class="tip"><input type="radio" name="tip" value="15"><span>15%</span></label>
+          <label class="tip"><input type="radio" name="tip" value="20"><span>20%</span></label>
+        </div>
+      </fieldset>
+
+      <label class="field" for="people">
+        <span class="label">Number of people</span>
+        <input id="people" name="people" type="number" inputmode="numeric" min="1" step="1" value="1" aria-describedby="people-msg">
+        <span id="people-msg" class="msg" role="alert"></span>
+      </label>
+
+      <label class="field" for="coupon">
+        <span class="label">Coupon code</span>
+        <input id="coupon" name="coupon" type="text" placeholder="Optional" autocapitalize="characters" spellcheck="false" aria-describedby="coupon-msg">
+        <span id="coupon-msg" class="msg" role="alert"></span>
+      </label>
+
+      <label class="switch" for="gst">
+        <span class="label">Add 5% GST</span>
+        <input id="gst" name="gst" type="checkbox" role="switch">
+      </label>
+
+      <label class="switch" for="round-up">
+        <span class="label">Round each share up to the next dollar</span>
+        <input id="round-up" name="round-up" type="checkbox" role="switch">
+      </label>
+    </form>
+
+    <section class="results" aria-live="polite">
+      <div class="row" id="discount-row" hidden>
+        <span>Coupon discount</span>
+        <output id="discount">$0.00</output>
+      </div>
+      <div class="row" id="gst-row" hidden>
+        <span>GST (5%)</span>
+        <output id="gst-amount">$0.00</output>
+      </div>
+      <div class="row">
+        <span>Tip</span>
+        <output id="tip-amount">$0.00</output>
+      </div>
+      <div class="row total">
+        <span>Total</span>
+        <output id="total">$0.00</output>
+      </div>
+      <div class="row each">
+        <span>Each person pays</span>
+        <output id="each">$0.00</output>
+      </div>
+      <ul id="shares" class="shares" aria-label="What each person pays"></ul>
+    </section>
+
+    <section class="share">
+      <p class="label">Share this bill</p>
+      <a id="share-link" class="share-link" href="/"></a>
+      <button type="button" id="copy" class="copy">Copy link</button>
+      <span id="copy-msg" class="ok" aria-live="polite"></span>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
