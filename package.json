@@ -1,12 +1,16 @@
 {
   "name": "kane-signoff",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Your coding agent isn't done until Kane signs off. A Stop hook that runs your Kane CLI specs in a real browser and feeds failures back to the agent until they pass.",
   "type": "module",
   "bin": { "kane-signoff": "bin/kane-signoff.mjs" },
-  "files": ["bin", "src", "viewer", "templates"],
+  "files": ["bin", "src", "viewer"],
   "engines": { "node": ">=18" },
-  "scripts": { "test": "node --test test/" },
-  "keywords": ["kane-cli", "testing", "e2e", "coding-agent", "hooks", "verification"],
+  "scripts": { "test": "node test-support/run-tests.mjs" },
+  "keywords": ["kane-cli", "testing", "e2e", "coding-agent", "hooks", "verification", "claude-code"],
+  "author": "Rajeev Bhandari",
+  "repository": { "type": "git", "url": "git+https://github.com/Automationbot24x7/kane-signoff.git" },
+  "homepage": "https://github.com/Automationbot24x7/kane-signoff#readme",
+  "bugs": { "url": "https://github.com/Automationbot24x7/kane-signoff/issues" },
   "license": "MIT"
 }
