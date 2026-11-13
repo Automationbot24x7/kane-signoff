@@ -22,10 +22,40 @@ const READ_TOOLS = new Set(['Read', 'Grep', 'Glob', 'NotebookRead', 'LS']);
 // taskkill /IM, pkill, killall, Stop-Process -Name, Get-Process <name> | Stop-Process, kill -1, wmic ... delete
 const MASS_KILL = /\btaskkill\b[^|;&]*\s[/-]im\b|\bpkill\b|\bkillall\b|\bStop-Process\b[^|;&]*-(Name|ProcessName)\b|\bGet-Process\b[^|;]*\|\s*Stop-Process\b|\bkill\s+(-\w+\s+)*-1\b|\bwmic\b[^|;&]*\bprocess\b[^|;&]*\bdelete\b|\bkill\s+[^|;&]*\$\(\s*pgrep\b/i;
 
-// The Signoff command line, however it is started: `npm run signoff x`, `npx kane-signoff x`,
-// `node .signoff/tool/bin/kane-signoff.mjs x`.
-const SIGNOFF_CLI = /(?:kane-signoff(?:\.mjs)?["']?|\b(?:npm|pnpm|yarn|bun)\s+(?:run(?:-script)?\s+)?(?:-\S+\s+)*signoff\b(?:\s+--(?=\s))?)\s*["']?([a-z-]*)/i;
+// Signoff commands the agent may not run: the human's (off, on, lock, init) and the hooks' own.
 const HUMAN_ONLY = new Set(['off', 'on', 'lock', 'init']);
+const HOOK_ONLY = new Set(['gate', 'guard', 'mark']);
+const RUNTIMES = new Set(['node', 'nodejs', 'bun', 'deno']);
+const PACKAGE_RUNNERS = new Set(['npm', 'pnpm', 'yarn', 'bun']);
+const NPX = new Set(['npx', 'pnpx', 'bunx']);
+const INTERPRETERS = new Set(['node', 'nodejs', 'bun', 'deno', 'python', 'python3', 'py', 'ruby', 'perl', 'php', 'bash', 'sh', 'zsh', 'dash', 'pwsh', 'powershell', 'cmd', 'eval', 'xargs']);
+// The same commands buried in code or a nested shell: `node -e "execSync('npm run signoff off')"`.
+const BURIED_CLI = /\bsignoff(?:\.mjs)?["']?\s+(?:--\s+)?["']?(off|on|lock|init|gate|guard|mark)\b/i;
+
+/**
+ * Is this simple command the Signoff command line (`npm run signoff x`, `npx kane-signoff x`,
+ * `node .signoff/tool/bin/kane-signoff.mjs x`, `kane-signoff x`)? Returns its subcommand
+ * ('' for none), or null when it is something else. Decided word by word: a folder that
+ * happens to be called kane-signoff must not look like the command.
+ */
+function signoffCommand(verb, args) {
+  const plain = args.filter((a) => a && !a.startsWith('-'));
+  const isTool = (w) => /(^|[\\/])kane-signoff(\.mjs)?$/i.test(w ?? '');
+  if (verb === 'kane-signoff' || verb === 'kane-signoff.mjs') return (plain[0] ?? '').toLowerCase();
+  if (RUNTIMES.has(verb) && isTool(plain[0])) return (plain[1] ?? '').toLowerCase();
+  if (NPX.has(verb) && /kane-signoff(@[^/]*)?$/i.test(plain[0] ?? '')) return (plain[1] ?? '').toLowerCase();
+  if (PACKAGE_RUNNERS.has(verb)) {
+    const words = args.filter((a) => a && (a === '--' || !a.startsWith('-')));
+    let i = 0;
+    if (words[i] === 'run' || words[i] === 'run-script') i++;
+    else if (verb === 'npm') return null; // `npm signoff` is not a thing
+    if (words[i] !== 'signoff') return null;
+    i++;
+    if (words[i] === '--') i++;
+    return (words[i] ?? '').toLowerCase();
+  }
+  return null;
+}
 
 // Commands that only read. Anything else that names a locked path is refused.
 const READ_VERBS = new Set([
@@ -223,18 +253,19 @@ export function guard(input) {
   const stems = [specDir, '.signoff/', CONFIG_FILE, '.claude/settings.json', '.claude/settings.local.json', ...(blind ? ['.testmuai'] : [])].map((s) => ({ stem: s, re: pathRegex(s) }));
   let cwd = startDir; // follows `cd` through the command
 
-  for (const seg of segments(shell)) {
-    const cli = seg.match(SIGNOFF_CLI);
-    if (cli) {
-      const sub = cli[1].toLowerCase();
-      if (HUMAN_ONLY.has(sub)) {
-        return deny('admin', cmd, `\`signoff ${sub}\` is for the human who owns this project: the agent may not switch the gate off, re-sign the specs or re-install the hooks. If the gate is in the way, finish and say so, and let the human decide.`);
-      }
-      continue; // status, view, check, help: fine
-    }
+  const admin = (sub) => deny('admin', cmd, HOOK_ONLY.has(sub)
+    ? `\`signoff ${sub}\` is run by the hooks, not by hand. When you finish, Signoff runs Kane for you (or run \`signoff check\` to test now).`
+    : `\`signoff ${sub}\` is for the human who owns this project: the agent may not switch the gate off, re-sign the specs or re-install the hooks. If the gate is in the way, finish and say so, and let the human decide.`);
 
+  for (const seg of segments(shell)) {
     const { verb, args } = verbOf(seg);
     if (!verb) continue;
+    const sub = signoffCommand(verb, args);
+    if (sub !== null) {
+      if (HUMAN_ONLY.has(sub) || HOOK_ONLY.has(sub)) return admin(sub);
+      continue; // status, check, view, doctor, help: fine
+    }
+    if (INTERPRETERS.has(verb)) { const buried = seg.match(BURIED_CLI); if (buried) return admin(buried[1].toLowerCase()); }
     const flagless = args.filter((a) => a && !a.startsWith('-'));
 
     // What locked or hidden paths does this command name?
