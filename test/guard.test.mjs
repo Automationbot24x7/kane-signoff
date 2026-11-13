@@ -107,7 +107,29 @@ test('human-only Signoff commands are refused, however they are started', () => 
     'cd public && npm run signoff on',
     'node -e "require(\'child_process\').execSync(\'npm run signoff off\')"',
   ]) assert.equal(rule(sh(command)), 'admin', command);
-  for (const command of ['npm run signoff status', 'npm run signoff check', 'node bin/kane-signoff.mjs status', 'npm run signoff view', 'npm run signoff']) assert.equal(sh(command), null, command);
+  for (const command of ['npm run signoff status', 'npm run signoff check', 'node bin/kane-signoff.mjs status', 'npm run signoff view', 'npm run signoff doctor', 'npm run signoff']) assert.equal(sh(command), null, command);
+});
+
+test('the hooks\' own commands are not for the agent either', () => {
+  for (const command of ['echo {} | node .signoff/tool/bin/kane-signoff.mjs gate', 'npm run signoff mark', 'npx kane-signoff guard']) assert.equal(rule(sh(command)), 'admin', command);
+});
+
+test('a folder called kane-signoff is not mistaken for the command', () => {
+  // A clone of this repository lives in a folder with that name.
+  assert.equal(sh('cd /srv/kane-signoff/examples/tabby && npm test'), null);
+  assert.equal(sh('ls /srv/kane-signoff && git -C /srv/kane-signoff status'), null);
+  assert.equal(rule(bsh('cd /srv/kane-signoff/examples/tabby && cat signoff/items_test.md')), 'hidden');
+  const clone = join(mkdtempSync(join(tmpdir(), 'signoff-clone-')), 'kane-signoff');
+  mkdirSync(join(clone, 'signoff'), { recursive: true });
+  writeFileSync(join(clone, 'signoff.config.json'), JSON.stringify({ url: 'http://localhost:3000', blind: true }));
+  writeFileSync(join(clone, 'signoff', 'items_test.md'), '# spec\n');
+  const c = (command) => rule(guard({ cwd: tmpdir(), tool_name: 'Bash', tool_input: { command } }));
+  process.env.CLAUDE_PROJECT_DIR = clone;
+  try {
+    assert.equal(c(`cd "${clone}" && rm -rf .signoff`), 'locked');
+    assert.equal(c(`cat "${join(clone, 'signoff', 'items_test.md')}"`), 'hidden');
+    assert.equal(c(`cd "${clone}" && npm test`), null);
+  } finally { delete process.env.CLAUDE_PROJECT_DIR; }
 });
 
 test('reads are allowed by default, including round screenshots', () => {

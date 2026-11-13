@@ -63,3 +63,13 @@ The agent's change: `public/app.js`, `public/index.html`, `public/style.css` and
 ## Same bug, five runs
 
 With this ticket and this model, the agent's first version had the same bug in every run we made: 5 of 5. Kane caught it each time. In two of those runs Kane's own triage blamed the spec rather than the app; that is why Signoff now adds a note pointing the agent at the brief when that happens (see `src/report.mjs`).
+
+## Replay it
+
+The files the agent wrote in this run are in [`examples/replay`](../../examples/replay): `attempt-1` is what it had when it first said "done", `attempt-2` is what it had after reading Kane's report. They were rebuilt by replaying the agent's own file writes and edits from this run's log, and the result matches the files left on disk byte for byte.
+
+```bash
+node examples/replay/replay.mjs
+```
+
+runs both through Signoff's real hooks with your Kane CLI, without a coding agent.

@@ -2,6 +2,8 @@
 
 **Your coding agent is not done until Kane signs off.**
 
+[![tests](https://github.com/Automationbot24x7/kane-signoff/actions/workflows/tests.yml/badge.svg)](https://github.com/Automationbot24x7/kane-signoff/actions/workflows/tests.yml)
+
 **[Watch the 3-minute demo](https://youtu.be/z3iJZXUgozs)**: a real run where the agent says "done", Kane CLI catches a bug in a real browser, and the agent is sent back until Kane signs off.
 
 Coding agents say "done" when the code compiles and their own checks pass. Signoff makes "done" mean *a real browser used the app and it worked*.
@@ -32,16 +34,28 @@ That trace is a real run, not a mock-up: [read the full run log](docs/runs/2026-
 
 > Built for the KaneCLI Online Hackathon (12 to 19 November 2026).
 
+## See Kane catch it on your machine (no coding agent needed)
+
+```bash
+git clone https://github.com/Automationbot24x7/kane-signoff
+cd kane-signoff
+node examples/replay/replay.mjs
+```
+
+You need Node 18+, Chrome and Kane CLI signed in. It takes about 8 minutes and roughly 100 Kane credits.
+
+The [replay](examples/replay) runs the loop from the demo video with the agent's part played back from the recording: the files it had written when it first said "done", then the files after its fix. Everything else is live: Signoff's hooks, your Kane CLI, a real Chrome browser. You watch Kane refuse the first version, read the exact report the agent received, and see the fixed version signed off with a receipt.
+
 ## Why a gate, not a skill
 
 The Kane CLI skill lets an agent run Kane *when it decides to*. Signoff takes the decision away.
 
 | | Agent calls Kane | **Signoff** |
 |---|---|---|
-| When Kane runs | when the agent chooses | every time the agent tries to finish |
+| When Kane runs | when the agent chooses | every time the agent finishes a turn that changed code |
 | After a fail | the agent may mention it | the agent **cannot stop** until it is fixed |
 | What the agent reads | the raw run | a short diagnosis built from Kane's evidence pack: triage, console, network, screenshot |
-| Can the agent weaken the test? | yes | **no**: specs are locked by hash and guarded on write |
+| Can the agent weaken the test? | yes | **no**: specs are locked by hash, guarded on write, and put back if they change |
 | Can the agent study the test? | yes | optional **hidden specs**: it learns only from Kane's failures |
 | Proof | a run | a receipt per sign-off, a round-by-round ledger, a live timeline |
 
@@ -64,7 +78,7 @@ npx github:Automationbot24x7/kane-signoff init --url http://localhost:3000 --sta
 
 - `signoff.config.json`: where your app runs and how to start it
 - `signoff/smoke_test.md`: a starter spec to edit (add more next to it)
-- `.claude/settings.json`: a **Stop** hook (the gate) and a **PreToolUse** hook (the spec guard)
+- `.claude/settings.json`: three hooks. **Stop** is the gate, **PreToolUse** is the guard, and **UserPromptSubmit** notes what the code looked like when you asked, so a turn that changes nothing is never held up
 - `.signoff/tool/`: the gate itself, vendored into your repo with **zero dependencies**, so teammates and CI run exactly the same thing
 - an `npm run signoff <command>` shortcut, if the project has a `package.json`
 
@@ -72,17 +86,17 @@ Sign the specs, then work as usual:
 
 ```bash
 npm run signoff lock     # the specs are now the definition of done
+npm run signoff doctor   # checks Kane CLI, the hooks, the lock and the app's port
 npm run signoff view     # optional: watch each round live at http://localhost:4747
 ```
 
 Ask your agent for a change. It cannot finish until Kane passes the specs.
 
-## Try the demo
+## Try the demo with an agent
 
 [`examples/tabby`](examples/tabby) is a small bill splitter that a coding agent built and Kane signed off. Its [brief](examples/tabby/BRIEF.md) ends with an open ticket, "Checkout extras" (GST, a coupon, round-up, a share link), and its spec for that ticket is **hidden** from the agent.
 
 ```bash
-git clone https://github.com/Automationbot24x7/kane-signoff
 cd kane-signoff/examples/tabby
 npm run signoff check                                        # Kane fails the hidden checkout spec: the feature is not built yet
 claude "Build the 'Checkout extras' described at the end of BRIEF.md."
@@ -112,18 +126,32 @@ Verify a message says the code is not valid, and the total still shows $108.00.
 
 Kane caches passing steps and replays them with no AI cost, so specs that already pass re-check quickly and cheaply. In our runs a fresh spec cost 20 to 80 credits; replays cost 0.
 
+Keep the sign-off suite to the few flows that must never break. The gate has 27 minutes per round (the Stop hook is given 30); if it runs out, it says so and does not sign off.
+
 ## Hidden specs
 
-Set `"blind": true` and the agent cannot read the specs at all (file tools, searches and shell reads are blocked). It builds from the brief and learns what it got wrong only from Kane's failures, like a hold-out test set. Without this, a capable agent simply reads the spec and codes to it. With it, Kane is checking the agent's understanding of the brief, which is where real bugs live.
+Set `"blind": true` and the agent may not read the specs: its file tools, searches and shell reads of the spec folder are refused, along with wildcards that expand to it, whole-project searches and copies, and Signoff's own run records that would give the steps away. It builds from the brief and learns what it got wrong only from Kane's failures, like a hold-out test set. Without this, a capable agent simply reads the spec and codes to it. With it, Kane is checking the agent's understanding of the brief, which is where real bugs live.
 
 ## Guard rails
 
-- **Spec lock.** `lock` records a SHA-256 of every spec and the config. If anything changes, by any route, the gate refuses to sign off and tells the agent to restore them.
-- **Spec guard.** A PreToolUse hook denies edits and shell writes to the specs, `signoff.config.json`, `.signoff/` and the hook settings, so the agent cannot weaken a test, switch the gate off or forge a pass.
+- **Spec lock.** `lock` records a SHA-256 of every spec and the config. If anything differs at sign-off time, by any route, the gate refuses to sign off.
+- **Changed specs are put back.** If a locked file changes during a request, Signoff restores the signed version from its own copy (or the last commit), keeps what was there in `.signoff/rounds/`, and tells the agent to change the app instead. Specs that *you* edited before the request are left alone; Signoff tells you to `lock` again.
+- **Guard.** A PreToolUse hook refuses edits to the specs, `signoff.config.json`, `.signoff/` and the hook settings. From the shell, any command that touches one of those is refused unless it only reads (`cat`, `ls`, `grep`, `git diff`…), because the guard cannot prove an unknown command does not write.
+- **Human-only commands.** The agent may not run `signoff off`, `on`, `lock` or `init`, however it starts them.
+- **No kills by name.** `taskkill /IM`, `pkill` and friends are refused: they would take Kane, its browser and the app down (in one of our runs the agent killed every Node process on the machine). Stopping one PID is fine.
+- **Refusals are on the record.** Every refused attempt goes into the ledger, shows on the timeline, and is counted on the receipt.
 - **Fresh app every round.** With a `start` command, Signoff starts the app from this folder for each round and stops it afterwards. It refuses to test a server it did not start, so Kane never signs off on stale code.
-- **Round cap.** After `maxRounds` (default 4) failed rounds the agent may stop, with the last report and a "not signed off" receipt.
-- **Never trapped by infrastructure.** If Kane itself cannot start (exit code 2: sign-in, Chrome, network), the gate lets the agent stop and says why. It blocks only on real failures.
+- **Only turns that change code.** A question or an explanation is never held up and costs no credits.
+- **Round cap.** After `maxRounds` (default 4) failed rounds in one request the agent may stop, with the last report and a "not signed off" receipt. The next request starts again from round 1.
+- **Never trapped by infrastructure.** If Kane itself cannot run (not installed, not signed in, no Chrome, no network), the gate lets the agent stop and says why. It blocks only on real failures.
 - **No wasted credits.** If the code is byte for byte what Kane last signed off, the gate passes without a run. If nothing changed since a failing run, it sends the same report back without spending credits.
+
+## What Signoff is not
+
+- **Not a sandbox.** The guard refuses the direct routes and records every attempt, but an agent with a shell can run code the guard cannot read (a script it wrote, for instance). The backstops are the hash check at sign-off, the restore, and git: commit `signoff/` and `.signoff/spec-lock.json`, and any change to them shows in the diff. For a hard guarantee, run `npm run signoff check` in CI from a clean checkout.
+- **Hidden specs are a best effort.** They stop an agent from reading the answers by accident or by the obvious routes; they do not stop one that is determined to. Specs in git history are readable history.
+- **Kane is an AI tester.** Its verdict was right in every run we made, but its guess at who is to blame was not: twice it blamed the spec. Signoff then tells the agent to check the brief, not to work around the spec.
+- **Claude Code hooks, for now.** The gate is wired to Claude Code's Stop hook. `check` is a plain command with an exit code, so it works from any other agent's hook, a git hook or CI.
 
 ## Commands
 
@@ -134,9 +162,10 @@ Run them with `npm run signoff <command>` or `node .signoff/tool/bin/kane-signof
 | `init [--url] [--start]` | wire Signoff into the project |
 | `lock` | sign the current specs as the definition of done |
 | `check` | run the specs now, exactly like the hook (exit 0 pass, 1 fail); works in CI |
+| `doctor` | check Kane CLI, the hooks, the lock and the app's port, with the fix for each problem |
 | `view` | live round-by-round timeline at `http://localhost:4747` |
 | `status` | config, specs, lock state, last sign-off |
-| `off` / `on` | pause or resume the gate (humans only: the agent cannot write it) |
+| `off` / `on` | pause or resume the gate (humans only: the agent's attempts are refused) |
 
 ## Configuration (`signoff.config.json`)
 
@@ -145,25 +174,33 @@ Run them with `npm run signoff <command>` or `node .signoff/tool/bin/kane-signof
 | `url` | `http://localhost:3000` | where the app answers |
 | `start` | none | command that starts the app; omit it if you run the app yourself |
 | `specs` | `signoff` | folder of `*_test.md` specs |
-| `maxRounds` | `4` | failed rounds before the agent may stop anyway |
+| `maxRounds` | `4` | failed rounds per request before the agent may stop anyway |
 | `blind` | `false` | hide the specs from the agent |
 | `headless` | `true` | set `false` to watch Kane drive Chrome |
+| `readyTimeout` | `60` | seconds to wait for the app to answer |
 | `specTimeout` | `900` | seconds per spec |
+| `cdpEndpoint` | none | run Kane in a Chrome you started, to watch or record it (needs Node 22+) |
 
 ## How it works
 
+`mark` is the UserPromptSubmit hook: it fingerprints the code when a request starts.
+
 `gate` is the Stop hook. It:
 
-1. checks the spec lock;
-2. fingerprints the code, and skips the run if Kane already signed off on exactly this code;
+1. checks the spec lock, and puts back anything that changed during the request;
+2. fingerprints the code, and lets the agent stop if the turn changed nothing or Kane already signed off on exactly this code;
 3. starts the app and waits until it answers;
 4. runs each spec with `kane-cli testmd run <spec> --agent`, streaming Kane's NDJSON into the live timeline;
 5. on a failure, opens the sealed evidence pack (a zip, read with a built-in reader) and pulls the failing step's triage (`failure.yaml`), console errors, failed network calls and screenshot;
 6. returns `{"decision": "block", "reason": <diagnosis>}`, so the diagnosis becomes the agent's next instruction, or lets it stop and writes `.signoff/RECEIPT.md`.
 
-`guard` is the PreToolUse hook that enforces the lock and hidden specs.
+`guard` is the PreToolUse hook that enforces the lock, the hidden specs and the human-only commands.
 
-Zero dependencies, plain Node. Developed and tested on Windows 11 with Kane CLI 0.10.4; the macOS and Linux code paths are written but not yet tested on those systems. Run the unit tests with `npm test`.
+## Tested on
+
+Zero dependencies, plain Node. `npm test` runs 48 tests, among them the whole gate loop end to end (a real app started and stopped, a real evidence pack, the real hook protocol) with a [stand-in for Kane CLI](test-support/fake-kane.mjs). CI runs them on Linux, macOS and Windows with Node 18, 20 and 22.
+
+Runs with the real Kane CLI (0.10.4) were made on Windows 11: the [recorded runs](docs/runs), the replay above, and a fresh install from GitHub.
 
 ## License
 
